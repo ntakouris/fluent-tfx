@@ -1,11 +1,11 @@
-import logging
 from typing import Optional, Text, List, Dict, Any, Union
-from functools import wraps, partial
+from functools import wraps
 
 import tensorflow_model_analysis as tfma
 from tfx.orchestration import metadata, pipeline, data_types
 
-from tfx.proto import example_gen_pb2, trainer_pb2, infra_validator_pb2, pusher_pb2
+from tfx.proto import example_gen_pb2, trainer_pb2, \
+    infra_validator_pb2, pusher_pb2
 from ml_metadata.proto import metadata_store_pb2
 
 from tfx.dsl.experimental import latest_blessed_model_resolver
@@ -13,7 +13,11 @@ from tfx.utils.dsl_utils import csv_input, tfrecord_input, external_input
 
 from tfx.components.base.base_component import BaseComponent
 
-from tfx.components import CsvExampleGen, ImportExampleGen, BigQueryExampleGen, StatisticsGen, SchemaGen, Transform, ExampleValidator, ImporterNode, ResolverNode, Trainer, Evaluator, InfraValidator, Pusher, BulkInferrer
+from tfx.components import CsvExampleGen, ImportExampleGen, \
+    StatisticsGen, SchemaGen, Transform, ExampleValidator, ImporterNode, \
+    ResolverNode, Trainer, Evaluator, InfraValidator, Pusher, BulkInferrer
+
+from tfx.components import BigQueryExampleGen
 
 from tfx.components.base import executor_spec
 from tfx.components.trainer import executor as trainer_executor
@@ -21,7 +25,8 @@ from tfx.components.trainer import executor as trainer_executor
 from tfx.components.tuner.component import Tuner
 
 from tfx.types import standard_artifacts, Channel
-from tfx.extensions.google_cloud_ai_platform.trainer import executor as ai_platform_trainer_executor
+from tfx.extensions.google_cloud_ai_platform.trainer \
+    import executor as ai_platform_trainer_executor
 
 
 def build_step(func):
@@ -35,8 +40,8 @@ def build_step(func):
 
 class PipelineDef:
 
-    def __init__(self, name: Text, bucket: Text = './bucket', metadata_connection_config: Optional[
-            metadata_store_pb2.ConnectionConfig] = None):
+    def __init__(self, name: Text, bucket: Text = './bucket',
+                 metadata_connection_config: Optional[metadata_store_pb2.ConnectionConfig] = None):
         self.components = []
 
         self.pipeline_name = name
@@ -63,16 +68,20 @@ class PipelineDef:
         self.bulk_inferrer = None
 
     def with_sqlite_ml_metadata(self):
-        metadata_connection_string = f'{self.pipeline_bucket}/{self.pipeline_name}/metadata.db'
-        self.metadata_connection_config = metadata.sqlite_metadata_connection_config(
-            metadata_connection_string)
+        metadata_connection_string = \
+            f'{self.pipeline_bucket}/{self.pipeline_name}/metadata.db'
+
+        self.metadata_connection_config = metadata. \
+            sqlite_metadata_connection_config(metadata_connection_string)
 
         return self
 
     @build_step
-    def from_csv(self, uri: Text, input_config: Optional[example_gen_pb2.Input] = None, output_config: Optional[example_gen_pb2.Output] = None):
+    def from_csv(self, uri: Text, input_config:
+                 Optional[example_gen_pb2.Input] = None,
+                 output_config: Optional[example_gen_pb2.Output] = None):
         args = {
-            'input': csv_input(uri),
+            'input': external_input(uri),
         }
 
         if input_config:
@@ -85,9 +94,11 @@ class PipelineDef:
         return self.example_gen
 
     @build_step
-    def from_tfrecord(self, uri: Text, input_config: Optional[example_gen_pb2.Input] = None, output_config: Optional[example_gen_pb2.Output] = None):
+    def from_tfrecord(self, uri: Text, input_config:
+                      Optional[example_gen_pb2.Input] = None,
+                      output_config: Optional[example_gen_pb2.Output] = None):
         args = {
-            'input': tfrecord_input(uri),
+            'input': external_input(uri),
         }
 
         if input_config:
@@ -100,7 +111,9 @@ class PipelineDef:
         return self.example_gen
 
     @build_step
-    def from_bigquery(self, query: Text, input_config: Optional[example_gen_pb2.Input] = None, output_config: Optional[example_gen_pb2.Output] = None):
+    def from_bigquery(self, query: Text, input_config:
+                      Optional[example_gen_pb2.Input] = None,
+                      output_config: Optional[example_gen_pb2.Output] = None):
         args = {
             'query': query,
         }
@@ -143,9 +156,10 @@ class PipelineDef:
         return self.statistics_gen
 
     @build_step
-    def infer_schema(self):
+    def infer_schema(self, infer_feature_shape: bool = False):
         self.schema_gen = SchemaGen(
-            statistics=self.statistics_gen.outputs['statistics'])
+            statistics=self.statistics_gen.outputs['statistics'],
+            infer_feature_shape=infer_feature_shape)
 
         return self.schema_gen
 
@@ -160,10 +174,10 @@ class PipelineDef:
         return self.example_validator
 
     @build_step
-    def preprocess(self, preprocessing_fn):
+    def preprocess(self, module_file: Union[Text, data_types.RuntimeParameter]):
         args = {
             'examples': self.example_gen.outputs['examples'],
-            'preprocessing_fn': preprocessing_fn,
+            'module_file': module_file,
             'schema': SchemaInputs.SCHEMA_CHANNEL(self)
         }
 
@@ -189,9 +203,13 @@ class PipelineDef:
         return self.user_hyperparameters_importer
 
     @build_step
-    def tune(self, tuner_fn: Optional[Union[Text, data_types.RuntimeParameter]], train_args: Optional[trainer_pb2.TrainArgs] = None, eval_args: Optional[trainer_pb2.EvalArgs] = None, example_input=None):
+    def tune(self, module_file:
+             Union[Text, data_types.RuntimeParameter],
+             train_args: Optional[trainer_pb2.TrainArgs] = None,
+             eval_args: Optional[trainer_pb2.EvalArgs] = None,
+             example_input=None):
         args = {
-            'tuner_fn': tuner_fn,
+            'module_file': module_file,
             'schema': SchemaInputs.SCHEMA_CHANNEL(self)
         }
 
@@ -220,15 +238,21 @@ class PipelineDef:
         return self.tuner
 
     @build_step
-    def train(self, train_fn: Optional[Union[Text, data_types.RuntimeParameter]], train_args: Optional[trainer_pb2.TrainArgs] = None, eval_args: Optional[trainer_pb2.EvalArgs] = None, example_input=None, custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None, ai_platform_args: Optional[Dict[Text, Text]] = None, custom_config: Optional[Dict[Text, Any]] = None):
+    def train(self, module_file: Union[Text, data_types.RuntimeParameter],
+              train_args: Optional[trainer_pb2.TrainArgs] = None,
+              eval_args: Optional[trainer_pb2.EvalArgs] = None,
+              example_input=None,
+              custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None,
+              ai_platform_args: Optional[Dict[Text, Text]] = None,
+              custom_config: Optional[Dict[Text, Any]] = None):
         args = {
-            'run_fn': train_fn,
+            'module_file': module_file,
             'schema': SchemaInputs.SCHEMA_CHANNEL(self),
             'hyperparameters': HyperParameterInputs.BEST_HYPERPARAMETERS(self)
         }
 
-        args['custom_executor_spec'] = custom_executor_spec or executor_spec.ExecutorClassSpec(
-            trainer_executor.GenericExecutor),
+        args['custom_executor_spec'] = custom_executor_spec or \
+            executor_spec.ExecutorClassSpec(trainer_executor.GenericExecutor)
 
         if custom_config:
             args['custom_config'] = custom_config
@@ -274,6 +298,7 @@ class PipelineDef:
             example_input = self.cached_example_input
 
         self.lasest_blessed_model_resolver = ResolverNode(
+            instance_name='latest_blessed_model_resolver',
             resolver_class=latest_blessed_model_resolver.LatestBlessedModelResolver,
             model=Channel(type=standard_artifacts.Model),
             model_blessing=Channel(type=standard_artifacts.ModelBlessing))
@@ -292,7 +317,10 @@ class PipelineDef:
         return self.model_evaluator
 
     @build_step
-    def infra_validate(self, serving_spec: infra_validator_pb2.ServingSpec, validation_spec: Optional[infra_validator_pb2.ValidationSpec] = None, request_spec: Optional[infra_validator_pb2.RequestSpec] = None, example_input=None):
+    def infra_validate(self, serving_spec: infra_validator_pb2.ServingSpec,
+                       validation_spec: Optional[infra_validator_pb2.ValidationSpec] = None,
+                       request_spec: Optional[infra_validator_pb2.RequestSpec] = None,
+                       example_input=None):
         args = {
             'model': self.trainer.outputs['model'],
             'serving_spec': serving_spec,
@@ -319,12 +347,20 @@ class PipelineDef:
         return self.infra_validator
 
     @build_step
-    def push_to(self, push_destination: pusher_pb2.PushDestination, custom_config: Optional[Dict[Text, Any]] = None, custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None):
+    def push_to(self, relative_push_uri: Text = None, push_destination: pusher_pb2.PushDestination = None, custom_config: Optional[Dict[Text, Any]] = None, custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None):
         args = {
             'model': self.trainer.outputs['model'],
-            'model_blessing': self.model_evaluator.outputs['blessing'],
-            'push_destination': push_destination
         }
+
+        if push_destination:
+            args['push_destination'] = push_destination
+        elif relative_push_uri:
+            args['push_destination'] = pusher_pb2.PushDestination(
+                filesystem=pusher_pb2.PushDestination.Filesystem(
+                    base_directory=f'{self.pipeline_bucket}/{self.pipeline_name}/{relative_push_uri}'))
+
+        if self.model_evaluator:
+            args['model_blessing'] = self.model_evaluator.outputs['blessing']
 
         if custom_config:
             args['custom_config'] = custom_config
@@ -377,7 +413,7 @@ class ExampleInputs:
 
 
 class HyperParameterInputs:
-    
+
     @staticmethod
     def _get_best_hyperparameters(pipeline_def: PipelineDef):
         if pipeline_def.tuner:
@@ -398,8 +434,8 @@ class SchemaInputs:
             return pipeline_def.user_schema_importer.outputs['result']
 
         if pipeline_def.schema_gen:
-            return pipeline_def.schema_gen.output['schema']
-        
+            return pipeline_def.schema_gen.outputs['schema']
+
         return None
 
     SCHEMA_CHANNEL = _get_schema_channel

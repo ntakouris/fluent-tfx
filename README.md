@@ -6,6 +6,12 @@ Fluent TFX provides an easy-to-use api over TFX. If you are already using tensor
 
 ![PyPi](https://github.com/ntakouris/fluent-tfx/workflows/Upload%20Python%20Package/badge.svg)
 
+`pip install fluent-tfx`
+
+```python
+import fluent_tfx as ftfx
+```
+
 ## Goals of this package
 
 Create an easy to use API for the creation, running and orchestration of TFX pipelines.
@@ -14,7 +20,7 @@ Create an easy to use API for the creation, running and orchestration of TFX pip
 
 This is a lightweight api to aid with the construction of tfx pipelines. Every side-effect and produced artifact is 100% compatible with the rest of the tfx sybsystem, including but not limited to: all the supported Beam runners (ex. Local with `BeamDagRunner`, Kubeflow, Airflow, Dataflow, etc.), custom components, ML Metadata artifacts.
 
-It provides several shortcut functions and utilities for easier, more readable, compact and expressive pipeline definitions. Some assumptions are made about specific inputs and outputs of the componens which are described after this small example:
+It provides several shortcut functions and utilities for easier, more readable, compact and expressive pipeline definitions, with sensible defaults. Some assumptions are made about specific inputs and outputs of the componens which are described after this small example:
 
 This is what you need to get started by using fluent tfx, instead of ~ 20 files produced with the tfx template cli commands:
 
@@ -22,6 +28,7 @@ This is what you need to get started by using fluent tfx, instead of ~ 20 files 
 
 ```python
 # file pipeline.py
+import fluent_tfx as ftfx
 
 def get_pipeline():
     return ftfx.PipelineDef(name='taxi_pipeline') \
@@ -36,7 +43,7 @@ def get_pipeline():
         .infra_validate(<args>) \
         .push_to(<pusher_args>) \
         .cache() \ # optional
-        .with_beam_pipeline_args() \ # optional too
+        .with_beam_pipeline_args(<args>) \ # optional too
         .build()
 
 
@@ -50,21 +57,43 @@ if __name__ == '__main__':
 
 ## Assumptions and Degrees of Freedom
 
+Assumptions are related to component dag wiring, paths and naming.
+
+**Paths**
+
+- `PipelineDef` needs a `pipeline_name` and an optional `bucket` path.
+- Binary/Temporary/Staging artifacts are stored under `{bucket}/{name}/staging`
+- Default ml metadata sqlite path is set to `{bucket}/{name}/metadata.db` unless specified otherwise
+- `bucket` defaults to `./bucket`
+- Pusher's `relative_push_uri` will publish the model to `{bucket}/{name}/{relative_push_uri}`
+
+**Component IO**
+
+- An input, or an `example_gen` component provides `.tfrecord`s (probably in gzipped format) to next components
+- Fluent TFX follows the TFX naming of default components for everything. When providing custom components, make sure that inputs and outputs are on par with TFX.
+- For example, your custom `example_gen` component should have a `.outputs['examples']` attribute
+
+**Component Wiring Defaults**
+
+- If a user provided schema uri is provided, it will be used for data validation, transform, etc. The generated schema component will still generate artifacts if declared
+- If a user did not provide a model evaluation step, it will not be wired to the pusher
+- The default training input source are transform outputs. The user can specify if he wants the raw tf records instead
+- If hyperparameters are specified and tuner is declared, tuner will still test configurations and produce hyperparameter artifacts, but the provided hyperparameters will be used
+
 ## Utilities
+
+WIP
+
+
+### Artifact browsing
 
 WIP
 
 ### Runners
 
-WIP
+There is no extra effort required to run the pipeline on different runners, nor extra dependencies required: `PipelineDef` produces a vanilla tfx pipeline.
 
-### Artifact wiring
-
-WIP
-
-### Artifact browsing
-
-WIP
+However, if you are using `ftfx` utilities inside your pipeline functions, [be sure to include this package in your requirements.txt beam argument](https://beam.apache.org/documentation/sdks/python-pipeline-dependencies/)
 
 ## Examples
 
