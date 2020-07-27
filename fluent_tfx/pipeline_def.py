@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Text, List, Dict, Any, Union
 from functools import wraps
 
@@ -5,7 +6,7 @@ import tensorflow_model_analysis as tfma
 from tfx.orchestration import metadata, pipeline, data_types
 
 from tfx.proto import example_gen_pb2, trainer_pb2, \
-    infra_validator_pb2, pusher_pb2
+    infra_validator_pb2, pusher_pb2, bulk_inferrer_pb2
 from ml_metadata.proto import metadata_store_pb2
 
 from tfx.dsl.experimental import latest_blessed_model_resolver
@@ -29,9 +30,9 @@ from tfx.extensions.google_cloud_ai_platform.trainer \
     import executor as ai_platform_trainer_executor
 
 
-def build_step(func):
+def build_step(component_name: Text):
     """Wraps a function inside a `PipelineDef`.
-    Adds the component returned to the list of used components (`self.components`)
+    Adds the component returned to the dict of used components (`self.components`)
     and then returns self as a fluent builder pattern.
 
     Args:
@@ -39,12 +40,15 @@ def build_step(func):
 
     Returns: self
     """
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        component = func(self, *args, **kwargs)
-        self.components.append(component)
-        return self
-    return wrapper
+    def inner_func(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            component = func(self, *args, **kwargs)
+            self.components[component_name] = component
+            return self
+        return wrapper
+
+    return inner_func
 
 
 class PipelineDef:
@@ -64,7 +68,7 @@ class PipelineDef:
             metadata_connection_config (Optional[metadata_store_pb2.ConnectionConfig], optional): 
             Optional ML Metadata configuration for rapid local prototyping you can use `with_sqlite_ml_metadata`. Defaults to None.
         """
-        self.components = []
+        self.components = {}
 
         self.pipeline_name = name
         self.pipeline_bucket = bucket
@@ -103,9 +107,37 @@ class PipelineDef:
 
         return self
 
-    @build_step
-    def from_csv(self, uri: Text, input_config:
-                 Optional[example_gen_pb2.Input] = None,
+        def add_custom_component(name: Text, component):
+        """Adds a custom component given a name to the current components pipeline dict.
+        The name should not be one of tensorflow extended's components names, converted to snake_case.
+
+        If the component is not an instance of BaseComponent, it should be a
+        callable that expects the self.components dict as input
+
+        Raises:
+            ValueError: If provided component is neither a BaseComponent nor a callable
+
+        Returns: self
+        """
+        if name in self.components:
+            logging.info(
+                f'{name} is already in the components dict, overriding.')
+
+        if isinstance(component, BaseComponent):
+            self.components[name] = component
+            return self
+
+        if hasattr(component, '__call__'):
+            self.components[name] = component(self.components)
+            return self
+
+        raise ValueError(
+            f'add_custom_component: Expected callable or BaseComponent, got {component} instead.')
+        return self
+
+    @build_step('example_gen')
+    def from_csv(self, uri: Text,
+                 input_config: Optional[example_gen_pb2.Input] = None,
                  output_config: Optional[example_gen_pb2.Output] = None):
         """Constructs a CsvExampleGen component by using external_input(uri)
 
@@ -129,9 +161,9 @@ class PipelineDef:
         self.example_gen = CsvExampleGen(**args)
         return self.example_gen
 
-    @build_step
-    def from_tfrecord(self, uri: Text, input_config:
-                      Optional[example_gen_pb2.Input] = None,
+    @build_step('example_gen')
+    def from_tfrecord(self, uri: Text,
+                      input_config: Optional[example_gen_pb2.Input] = None,
                       output_config: Optional[example_gen_pb2.Output] = None):
         """Constructs an ImportExampleGen component by using external_input(uri)
 
@@ -155,9 +187,9 @@ class PipelineDef:
         self.example_gen = ImportExampleGen(**args)
         return self.example_gen
 
-    @build_step
-    def from_bigquery(self, query: Text, input_config:
-                      Optional[example_gen_pb2.Input] = None,
+    @build_step('example_gen')
+    def from_bigquery(self, query: Text,
+                      input_config: Optional[example_gen_pb2.Input] = None,
                       output_config: Optional[example_gen_pb2.Output] = None):
         """Constructs a BigQueryExampleGen component by using external_input(uri)
 
@@ -181,7 +213,7 @@ class PipelineDef:
         self.example_gen = BigQueryExampleGen(**args)
         return self.example_gen
 
-    @build_step
+    @build_step('example_gen')
     def from_custom_example_gen_component(self, component: BaseComponent):
         """Uses a custom tfx component to generate example files.
         The component should comply with the naming conventions of the other
@@ -196,7 +228,7 @@ class PipelineDef:
 
         return self.example_gen
 
-    @build_step
+    @build_step('user_schema_importer')
     def with_imported_schema(self, uri: Text):
         """Constructs an ImporterNode component that imports
         the schema in the pipelineas an artifact.
@@ -217,7 +249,7 @@ class PipelineDef:
 
         return self.user_schema_importer
 
-    @build_step
+    @build_step('statistics_gen')
     def generate_statistics(self):
         """Constructs a StatisticsGen component on the example_gen output files
 
@@ -234,7 +266,7 @@ class PipelineDef:
 
         return self.statistics_gen
 
-    @build_step
+    @build_step('schema_gen')
     def infer_schema(self, infer_feature_shape: Optional[bool] = False):
         """Constructs a SchemaGen component. a StatisticsGen component via `generate_statistics`
         is required as an input.
@@ -250,7 +282,7 @@ class PipelineDef:
 
         return self.schema_gen
 
-    @build_step
+    @build_step('example_validator')
     def validate_input_data(self):
         """Constructs an ExampleValidator component that uses a schema and the output
         of StatisticsGen via `generate_statistics` to validate input data.
@@ -267,7 +299,7 @@ class PipelineDef:
         self.example_validator = ExampleValidator(**args)
         return self.example_validator
 
-    @build_step
+    @build_step('transform')
     def preprocess(self, module_file: Union[Text, data_types.RuntimeParameter]):
         """Constructs a Transform component using examples generated and a schema.
 
@@ -289,7 +321,7 @@ class PipelineDef:
         self.transform = Transform(**args)
         return self.transform
 
-    @build_step
+    @build_step('train_base_model')
     def with_base_model(self, uri: Text):
         """Constructs an ImporterNode component that imports a `standard_artifacts.Model`
         artifact to use as a starting point for training.
@@ -306,7 +338,7 @@ class PipelineDef:
 
         return self.train_base_model
 
-    @build_step
+    @build_step('user_hyperparameters_importer')
     def with_hyperparameters(self, uri: Text):
         """Constructs an ImporterNode component that imports a `standard_artifacts.HyperParameters`
         artifact to use for future runs.
@@ -323,7 +355,7 @@ class PipelineDef:
 
         return self.user_hyperparameters_importer
 
-    @build_step
+    @build_step('tuner')
     def tune(self, module_file:
              Union[Text, data_types.RuntimeParameter],
              train_args: Optional[trainer_pb2.TrainArgs] = None,
@@ -358,7 +390,7 @@ class PipelineDef:
 
         return self.tuner
 
-    @build_step
+    @build_step('trainer')
     def train(self, module_file: Union[Text, data_types.RuntimeParameter],
               train_args: Optional[trainer_pb2.TrainArgs] = None,
               eval_args: Optional[trainer_pb2.EvalArgs] = None,
@@ -433,7 +465,7 @@ class PipelineDef:
         self.trainer = Trainer(**args)
         return self.trainer
 
-    @build_step
+    @build_step('model_evaluator')
     def evaluate_model(self, eval_config: tfma.EvalConfig, example_input: Optional = None):
         """Constructs an Evaluator
 
@@ -465,7 +497,7 @@ class PipelineDef:
 
         return self.model_evaluator
 
-    @build_step
+    @build_step('infra_validator')
     def infra_validate(self, serving_spec: infra_validator_pb2.ServingSpec,
                        validation_spec: Optional[infra_validator_pb2.ValidationSpec] = None,
                        request_spec: Optional[infra_validator_pb2.RequestSpec] = None,
@@ -503,7 +535,7 @@ class PipelineDef:
         self.infra_validator = InfraValidator(**args)
         return self.infra_validator
 
-    @build_step
+    @build_step('pusher')
     def push_to(self, relative_push_uri: Optional[Text] = None,
                 push_destination: Optional[pusher_pb2.PushDestination] = None,
                 custom_config: Optional[Dict[Text, Any]] = None,
@@ -542,6 +574,38 @@ class PipelineDef:
         self.pusher = Pusher(**args)
         return self.pusher
 
+    @build_step('bulk_inferrer')
+    def bulk_infer(examples_provider_component: BaseComponent,
+                   data_spec: Optional[Union[bulk_inferrer_pb2.DataSpec,
+                                             Dict[Text, Any]]] = None,
+                   model_spec: Optional[Union[bulk_inferrer_pb2.ModelSpec,
+                                              Dict[Text, Any]]] = None,):
+        """Generates a BulkInferrer component that uses trainer model output and model evaluator
+        blessing.
+
+        Args:
+            examples (BaseComponent): A user-provided component that provides example tfrecord inputs to the 
+            `.outputs['examples']` attribute.
+
+        Returns: self
+        """
+        args = {
+            'examples': examples_provider_component.outputs['examples'],
+            'model': self.trainer.outputs['model']
+        }
+
+        if self.model_evaluator:
+            args['model_blessing'] = self.model_evaluator.outputs['blessing']
+
+        if data_spec:
+            args['data_spec'] = data_spec
+
+        if model_spec:
+            args['model_spec'] = model_spec
+
+        self.bulk_inferrer = BulkInferrer(**args)
+        return self.bulk_inferrer
+
     def cache(self, enable_cache=True):
         """
         Args:
@@ -573,7 +637,7 @@ class PipelineDef:
         args = {
             'pipeline_name': self.pipeline_name,
             'pipeline_root': f'{self.pipeline_bucket}/{self.pipeline_name}/staging',
-            'components': self.components,
+            'components': self.components.values(),
             'enable_cache': self.enable_cache or False,
             'metadata_connection_config': self.metadata_connection_config,
         }
