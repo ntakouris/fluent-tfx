@@ -30,6 +30,15 @@ from tfx.extensions.google_cloud_ai_platform.trainer \
 
 
 def build_step(func):
+    """Wraps a function inside a `PipelineDef`.
+    Adds the component returned to the list of used components (`self.components`)
+    and then returns self as a fluent builder pattern.
+
+    Args:
+        func (function): Function to be wrapped
+
+    Returns: self
+    """
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         component = func(self, *args, **kwargs)
@@ -39,9 +48,22 @@ def build_step(func):
 
 
 class PipelineDef:
+    """The fluent definition class that empowers fluent-tfx.
+    Initialise the constructor with a name and use the 
+    factory methods to construct the pipeline.
+    Obtain the tfx pipeline instance by using `.build()`
+    """
 
-    def __init__(self, name: Text, bucket: Text = './bucket',
+    def __init__(self, name: Text, bucket: Optional[Text] = './bucket',
                  metadata_connection_config: Optional[metadata_store_pb2.ConnectionConfig] = None):
+        """
+        Args:
+            name (Text): The pipeline's name
+            bucket (Text, optional): Intermediate artifacts and staging binaries are going
+            to be saved under `{name}/{bucket}/..`. Defaults to './bucket'.
+            metadata_connection_config (Optional[metadata_store_pb2.ConnectionConfig], optional): 
+            Optional ML Metadata configuration for rapid local prototyping you can use `with_sqlite_ml_metadata`. Defaults to None.
+        """
         self.components = []
 
         self.pipeline_name = name
@@ -68,6 +90,11 @@ class PipelineDef:
         self.bulk_inferrer = None
 
     def with_sqlite_ml_metadata(self):
+        """WIll use a sqlite database under {bucket}/{name}/metadata.db as a 
+        backend for ML Metadata.
+
+        Returns: self
+        """
         metadata_connection_string = \
             f'{self.pipeline_bucket}/{self.pipeline_name}/metadata.db'
 
@@ -80,6 +107,15 @@ class PipelineDef:
     def from_csv(self, uri: Text, input_config:
                  Optional[example_gen_pb2.Input] = None,
                  output_config: Optional[example_gen_pb2.Output] = None):
+        """Constructs a CsvExampleGen component by using external_input(uri)
+
+        Args:
+            uri (Text): Csv file(s) uri
+            input_config (Optional[example_gen_pb2.Input], optional): Defaults to None.
+            output_config (Optional[example_gen_pb2.Output], optional): Defaults to None.
+
+        Returns: self
+        """
         args = {
             'input': external_input(uri),
         }
@@ -97,6 +133,15 @@ class PipelineDef:
     def from_tfrecord(self, uri: Text, input_config:
                       Optional[example_gen_pb2.Input] = None,
                       output_config: Optional[example_gen_pb2.Output] = None):
+        """Constructs an ImportExampleGen component by using external_input(uri)
+
+        Args:
+            uri (Text): TFRecord file(s) uri
+            input_config (Optional[example_gen_pb2.Input], optional): Defaults to None.
+            output_config (Optional[example_gen_pb2.Output], optional): Defaults to None.
+
+        Returns: self
+        """
         args = {
             'input': external_input(uri),
         }
@@ -114,6 +159,15 @@ class PipelineDef:
     def from_bigquery(self, query: Text, input_config:
                       Optional[example_gen_pb2.Input] = None,
                       output_config: Optional[example_gen_pb2.Output] = None):
+        """Constructs a BigQueryExampleGen component by using external_input(uri)
+
+        Args:
+            query (Text): The query to run
+            input_config (Optional[example_gen_pb2.Input], optional): Defaults to None.
+            output_config (Optional[example_gen_pb2.Output], optional): Defaults to None.
+
+        Returns: self
+        """
         args = {
             'query': query,
         }
@@ -129,12 +183,33 @@ class PipelineDef:
 
     @build_step
     def from_custom_example_gen_component(self, component: BaseComponent):
+        """Uses a custom tfx component to generate example files.
+        The component should comply with the naming conventions of the other
+        example generating components of tfx. (for example, contain a `.outputs['examples']` attribute)
+
+        Args:
+            component (BaseComponent): Your custom, compatible component.
+
+        Returns: self
+        """
         self.example_gen = component
 
         return self.example_gen
 
     @build_step
     def with_imported_schema(self, uri: Text):
+        """Constructs an ImporterNode component that imports
+        the schema in the pipelineas an artifact.
+
+        If infer_schema is called, the subsequent components will still use this
+        use provided schema, but the SchemaGen component will still produce inferred
+        schema artifacts.
+
+        Args:
+            uri (Text): Schema .pbtxt file uri
+
+        Returns: self
+        """
         self.user_schema_importer = ImporterNode(
             instance_name='with_imported_schema',
             source_uri=uri,
@@ -144,6 +219,10 @@ class PipelineDef:
 
     @build_step
     def generate_statistics(self):
+        """Constructs a StatisticsGen component on the example_gen output files
+
+        Returns: self
+        """
         args = {
             'examples': self.example_gen.outputs['examples']
         }
@@ -156,7 +235,15 @@ class PipelineDef:
         return self.statistics_gen
 
     @build_step
-    def infer_schema(self, infer_feature_shape: bool = False):
+    def infer_schema(self, infer_feature_shape: Optional[bool] = False):
+        """Constructs a SchemaGen component. a StatisticsGen component via `generate_statistics`
+        is required as an input.
+
+        Args:
+            infer_feature_shape (bool, optional): Defaults to False.
+
+        Returns: self
+        """
         self.schema_gen = SchemaGen(
             statistics=self.statistics_gen.outputs['statistics'],
             infer_feature_shape=infer_feature_shape)
@@ -165,6 +252,13 @@ class PipelineDef:
 
     @build_step
     def validate_input_data(self):
+        """Constructs an ExampleValidator component that uses a schema and the output
+        of StatisticsGen via `generate_statistics` to validate input data.
+
+        If a user provided schema is specified, it will be used.
+
+        Returns: self
+        """
         args = {
             'statistics': self.statistics_gen.outputs['statistics'],
             'schema': SchemaInputs.SCHEMA_CHANNEL(self)
@@ -175,6 +269,17 @@ class PipelineDef:
 
     @build_step
     def preprocess(self, module_file: Union[Text, data_types.RuntimeParameter]):
+        """Constructs a Transform component using examples generated and a schema.
+
+        If a user provided schema is specified, it will be used.
+
+        Args:
+            module_file (Union[Text, data_types.RuntimeParameter]): The module file (a/b/c.py)
+            that contains the preprocessing_fn function. The signature should be
+            `def preprocessing_fn(inputs: Dict[Text, Any]) -> Dict[Text, Any]`
+
+        Returns: self
+        """
         args = {
             'examples': self.example_gen.outputs['examples'],
             'module_file': module_file,
@@ -186,6 +291,14 @@ class PipelineDef:
 
     @build_step
     def with_base_model(self, uri: Text):
+        """Constructs an ImporterNode component that imports a `standard_artifacts.Model`
+        artifact to use as a starting point for training.
+
+        Args:
+            uri (Text): Model artifact's uri
+
+        Returns: self
+        """
         self.train_base_model = ImporterNode(
             instance_name='with_base_model',
             source_uri=uri,
@@ -195,6 +308,14 @@ class PipelineDef:
 
     @build_step
     def with_hyperparameters(self, uri: Text):
+        """Constructs an ImporterNode component that imports a `standard_artifacts.HyperParameters`
+        artifact to use for future runs.
+
+        Args:
+            uri (Text): Hyperparameter artifact's uri
+
+        Returns: self
+        """
         self.user_hyperparameters_importer = ImporterNode(
             instance_name='with_hyperparameters',
             source_uri=uri,
@@ -241,15 +362,35 @@ class PipelineDef:
     def train(self, module_file: Union[Text, data_types.RuntimeParameter],
               train_args: Optional[trainer_pb2.TrainArgs] = None,
               eval_args: Optional[trainer_pb2.EvalArgs] = None,
-              example_input=None,
+              example_input: Optional = None,
               custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None,
               ai_platform_args: Optional[Dict[Text, Text]] = None,
               custom_config: Optional[Dict[Text, Any]] = None):
+        """Constructs a Trainer component given the arguments
+
+        If there is a user provided schema, it will be used.
+        Similarly, if there are hyperparameters explicitly defined, they will be used.
+
+        By default, an trainer_executor.GenericExecutor is used.
+
+        If ai platform training arguments are provided, the executor is set to ai_platform_trainer_executor.GenericExecutor
+
+        Args:
+            module_file (Union[Text, data_types.RuntimeParameter]): The module file that contains run_fn.
+            The signature of the method must be `def run_fn(fn_args: TrainerFnArgs)`.
+            example_input ([type], optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
+            the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples.
+
+        Returns: self
+        """
         args = {
             'module_file': module_file,
             'schema': SchemaInputs.SCHEMA_CHANNEL(self),
-            'hyperparameters': HyperParameterInputs.BEST_HYPERPARAMETERS(self)
         }
+
+        hparams = HyperParameterInputs.BEST_HYPERPARAMETERS(self)
+        if hparams:
+            args['hyperparameters'] = hparams
 
         args['custom_executor_spec'] = custom_executor_spec or \
             executor_spec.ExecutorClassSpec(trainer_executor.GenericExecutor)
@@ -293,7 +434,15 @@ class PipelineDef:
         return self.trainer
 
     @build_step
-    def evaluate_model(self, eval_config: tfma.EvalConfig, example_input=None):
+    def evaluate_model(self, eval_config: tfma.EvalConfig, example_input: Optional = None):
+        """Constructs an Evaluator
+
+        Args:
+            example_input ([type], optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
+            the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples.
+
+        Returns: self
+        """
         if not example_input and self.cached_example_input:
             example_input = self.cached_example_input
 
@@ -321,6 +470,14 @@ class PipelineDef:
                        validation_spec: Optional[infra_validator_pb2.ValidationSpec] = None,
                        request_spec: Optional[infra_validator_pb2.RequestSpec] = None,
                        example_input=None):
+        """Constructs an InfraValidator component.
+
+        Args:
+            example_input ([type], optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
+            the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples.
+
+        Returns: self
+        """
         args = {
             'model': self.trainer.outputs['model'],
             'serving_spec': serving_spec,
@@ -347,7 +504,18 @@ class PipelineDef:
         return self.infra_validator
 
     @build_step
-    def push_to(self, relative_push_uri: Text = None, push_destination: pusher_pb2.PushDestination = None, custom_config: Optional[Dict[Text, Any]] = None, custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None):
+    def push_to(self, relative_push_uri: Optional[Text] = None,
+                push_destination: Optional[pusher_pb2.PushDestination] = None,
+                custom_config: Optional[Dict[Text, Any]] = None,
+                custom_executor_spec: Optional[executor_spec.ExecutorSpec] = None):
+        """Constructs a Pusher component
+
+        Args:
+            relative_push_uri (Optional[Text], optional): The relative to `{bucket}/{name}/` uri to push models to.
+            Defaults to None, where a `push_destination` `pusher_pb2` is expected.
+
+        Returns: self
+        """
         args = {
             'model': self.trainer.outputs['model'],
         }
@@ -375,15 +543,33 @@ class PipelineDef:
         return self.pusher
 
     def cache(self, enable_cache=True):
+        """
+        Args:
+            enable_cache (bool, optional): Defaults to True.
+
+        Returns: self
+        """
         self.enable_cache = enable_cache
 
         return self
 
     def with_beam_pipeline_args(self, args: Optional[List[Text]]):
+        """
+
+        Args:
+            args (Optional[List[Text]]): Beam Pipeline Arguments
+
+        Returns: self
+        """
         self.beam_pipeline_args = args
         return self
 
     def build(self) -> pipeline.Pipeline:
+        """Builds the pipeline.
+
+        Returns:
+            pipeline.Pipeline: The native TFX pipeline
+        """
         args = {
             'pipeline_name': self.pipeline_name,
             'pipeline_root': f'{self.pipeline_bucket}/{self.pipeline_name}/staging',
@@ -399,7 +585,10 @@ class PipelineDef:
 
 
 class ExampleInputs:
-
+    """Provides accessor functions for channel artifact access, regarding example tf records.
+    RAW EXAMPLES -> import example_gen files
+    PREPROCESSED_EXAMPLES -> import transformed examples 
+    """
     @staticmethod
     def _get_raw_examples_channel(pipeline_def: PipelineDef):
         return pipeline_def.example_gen['examples']
@@ -413,7 +602,9 @@ class ExampleInputs:
 
 
 class HyperParameterInputs:
-
+    """Provides accessor functions for channel artifact access, regarding hyperparameter artifacts.
+    BEST_HYPERPARAMETERS -> if they are specified explicitly, return them. Else, return tuner outputs.
+    """
     @staticmethod
     def _get_best_hyperparameters(pipeline_def: PipelineDef):
         if pipeline_def.tuner:
@@ -428,6 +619,9 @@ class HyperParameterInputs:
 
 
 class SchemaInputs:
+    """Provides accessor functions for channel artifact access, regarding schema artifacts.
+    SCHEMA_CHANNEL -> if they schema is specified explicitly, return it. Else, return inferred schema.
+    """
     @staticmethod
     def _get_schema_channel(pipeline_def: PipelineDef):
         if pipeline_def.user_schema_importer:
