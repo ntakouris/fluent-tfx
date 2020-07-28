@@ -107,7 +107,7 @@ class PipelineDef:
 
         return self
 
-        def add_custom_component(name: Text, component):
+    def add_custom_component(name: Text, component):
         """Adds a custom component given a name to the current components pipeline dict.
         The name should not be one of tensorflow extended's components names, converted to snake_case.
 
@@ -638,9 +638,11 @@ class PipelineDef:
             'pipeline_name': self.pipeline_name,
             'pipeline_root': f'{self.pipeline_bucket}/{self.pipeline_name}/staging',
             'components': self.components.values(),
-            'enable_cache': self.enable_cache or False,
-            'metadata_connection_config': self.metadata_connection_config,
+            'enable_cache': self.enable_cache or False
         }
+
+        if self.metadata_connection_config:
+            args['metadata_connection_config'] = self.metadata_connection_config
 
         if self.beam_pipeline_args:
             args['beam_pipeline_args'] = self.beam_pipeline_args
