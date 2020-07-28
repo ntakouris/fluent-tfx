@@ -278,9 +278,13 @@ if __name__ == '__main__':
                eval_args=trainer_pb2.EvalArgs(num_steps=5)) \
         .evaluate_model(eval_config=eval_config,
                         example_provider_component=ftfx.input_builders.from_csv(
-                            os.path.join(current_dir, 'data/'),
+                            os.path.join(current_dir, 'data'),
                             name='eval_example_gen')) \
         .push_to(relative_push_uri='serving') \
+        .bulk_infer(example_provider_component=ftfx.input_builders.from_csv(
+            uri=os.path.join(current_dir, 'to_infer'),
+            name='bulk_infer_example_gen'
+        )) \
         .build()
 
     BeamDagRunner().run(pipeline)

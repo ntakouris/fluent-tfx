@@ -57,6 +57,16 @@ if __name__ == '__main__':
 
 ```
 
+### Utilities
+
+#### Input Builders
+
+Even if you don't use `PipelineDef` for your pipeline creation, you can still use the 1-liner methods for input creation, found under `ftfx.input_builders`. Including but not limited to: `from_csv`, `from_tfrecord`, `with_hyperparameters`, `get_latest_blessed_model_resolver`.
+
+#### Other
+
+WIP
+
 ## Assumptions and Degrees of Freedom
 
 Custom components are supported to a large extent, but there will still some edge cases that would only work with the verbose plain old tfx api.
@@ -71,11 +81,12 @@ Assumptions are related to component dag wiring, paths and naming.
 - `bucket` defaults to `./bucket`
 - Pusher's `relative_push_uri` will publish the model to `{bucket}/{name}/{relative_push_uri}`
 
-**Component IO**
+**Component IO and Names**
 
 - An input, or an `example_gen` component provides `.tfrecord`s (probably in gzipped format) to next components
 - Fluent TFX follows the TFX naming of default components for everything. When providing custom components, make sure that inputs and outputs are on par with TFX.
 - For example, your custom `example_gen` component should have a `.outputs['examples']` attribute
+- When using extra components from `input_builders` make sure that the names you provide not override defaults, such as standard tfx component names as `snake_case` and `{name}_examples_provider`, `user_{x}_importer`.
 
 **Component Wiring Defaults**
 

@@ -555,7 +555,7 @@ class PipelineDef:
         return self.pusher
 
     @build_step('bulk_inferrer')
-    def bulk_infer(example_provider_component: BaseComponent,
+    def bulk_infer(self, example_provider_component: BaseComponent,
                    data_spec: Optional[Union[bulk_inferrer_pb2.DataSpec,
                                              Dict[Text, Any]]] = None,
                    model_spec: Optional[Union[bulk_inferrer_pb2.ModelSpec,
@@ -569,7 +569,6 @@ class PipelineDef:
 
         Returns: self
         """
-
         self.components['bulk_inferrer_example_provider'] = example_provider_component
 
         args = {
