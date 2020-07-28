@@ -107,7 +107,7 @@ class PipelineDef:
 
         return self
 
-    def add_custom_component(name: Text, component):
+    def add_custom_component(self, name: Text, component):
         """Adds a custom component given a name to the current components pipeline dict.
         The name should not be one of tensorflow extended's components names, converted to snake_case.
 
