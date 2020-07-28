@@ -54,6 +54,14 @@ def _gzip_reader_fn(filenames):
     return tf.data.TFRecordDataset(filenames, compression_type='GZIP')
 
 
+def _transformed_name(key):
+    return key + '_xf'
+
+
+def _transformed_names(keys):
+    return [_transformed_name(key) for key in keys]
+
+
 def _get_serve_tf_examples_fn(model, tf_transform_output):
     """Returns a function that parses a serialized tf.Example and applies TFT."""
 
@@ -74,21 +82,8 @@ def _get_serve_tf_examples_fn(model, tf_transform_output):
 
     return serve_tf_examples_fn
 
-# are you going to support raw json payloads ?
-# def _get_serve_raw_fn(model, tf_transform_output):
-#     model.tft_layer = tf_transform_output.transform_features_layer()
-
-#     @tf.function
-#     def serve_raw_fn(<json map>):
-#         parsed_features = {key: value, depending on your schema }
-#         transformed_features = model.tft_layer(parsed_features)
-
-#         return model(transformed_features)
-
-#     return serve_raw_fn
 
 # todo: determine batch size
-
 
 def _input_fn(file_pattern: List[Text],
               tf_transform_output: tft.TFTransformOutput,
@@ -253,12 +248,7 @@ def run_fn(fn_args: TrainerFnArgs):
             tf.TensorSpec(
                 shape=[None],
                 dtype=tf.string,
-                name='examples')),
-        # you can also provide a function that maps and serves json requests
-        # this is more costly and requires some manual mapping though
-        # 'serving_raw':
-        # _get_serve_raw_fn(model,
-        #                           tf_transform_output).get_concrete_function(<json map>)
+                name='examples'))
     }
     model.save(fn_args.serving_model_dir,
                save_format='tf', signatures=signatures)

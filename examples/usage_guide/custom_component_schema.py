@@ -50,7 +50,7 @@ if __name__ == '__main__':
         os.path.realpath(__file__))
     bucket_uri = os.path.join(current_dir, 'bucket')
 
-    pipeline = ftfx.PipelineDef(name='schema_generation', bucket=bucket_uri) \
+    pipeline = ftfx.PipelineDef(name='custom_component_schema', bucket=bucket_uri) \
         .with_sqlite_ml_metadata() \
         .from_csv(os.path.join(current_dir, 'data/')) \
         .generate_statistics() \

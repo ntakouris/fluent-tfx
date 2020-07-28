@@ -371,14 +371,11 @@ def get_pipeline():
         __file__), 'data', 'big_tipper_label')
     print(f'Loading csv data from: {_data_root}')
 
-    # this is relative to the root of the python process dir that runs the pipeline
-    fn_file = 'examples/chicago_taxi_pipeline/pipeline.py'
-
     return ftfx.PipelineDef(name='chicago_taxi_pipeline') \
         .from_csv(uri=_data_root) \
         .generate_statistics() \
         .infer_schema() \
-        .preprocess(fn_file) \
+        .preprocess(os.path.realpath(__file__)) \
         .train(fn_file,
                train_args=trainer_pb2.TrainArgs(num_steps=1000),
                eval_args=trainer_pb2.EvalArgs(num_steps=150)) \

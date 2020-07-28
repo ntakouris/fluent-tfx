@@ -29,6 +29,8 @@ from tfx.types import standard_artifacts, Channel
 from tfx.extensions.google_cloud_ai_platform.trainer \
     import executor as ai_platform_trainer_executor
 
+import fluent_tfx.input_builders as input_builders
+
 
 def build_step(component_name: Text):
     """Wraps a function inside a `PipelineDef`.
@@ -148,17 +150,9 @@ class PipelineDef:
 
         Returns: self
         """
-        args = {
-            'input': external_input(uri),
-        }
 
-        if input_config:
-            args['input_config'] = input_config
-
-        if output_config:
-            args['output_config'] = output_config
-
-        self.example_gen = CsvExampleGen(**args)
+        self.example_gen = input_builders.from_csv(
+            uri, input_config=input_config, output_config=output_config)
         return self.example_gen
 
     @build_step('example_gen')
@@ -174,17 +168,8 @@ class PipelineDef:
 
         Returns: self
         """
-        args = {
-            'input': external_input(uri),
-        }
-
-        if input_config:
-            args['input_config'] = input_config
-
-        if output_config:
-            args['output_config'] = output_config
-
-        self.example_gen = ImportExampleGen(**args)
+        self.example_gen = input_builders.from_tfrecord(
+            uri, input_config=input_config, output_config=output_config)
         return self.example_gen
 
     @build_step('example_gen')
@@ -200,17 +185,8 @@ class PipelineDef:
 
         Returns: self
         """
-        args = {
-            'query': query,
-        }
-
-        if input_config:
-            args['input_config'] = input_config
-
-        if output_config:
-            args['output_config'] = output_config
-
-        self.example_gen = BigQueryExampleGen(**args)
+        self.example_gen = input_builders.from_bigquery(
+            query, input_config=input_config, output_config=output_config)
         return self.example_gen
 
     @build_step('example_gen')
@@ -242,10 +218,7 @@ class PipelineDef:
 
         Returns: self
         """
-        self.user_schema_importer = ImporterNode(
-            instance_name='with_imported_schema',
-            source_uri=uri,
-            artifact_type=standard_artifacts.Schema)
+        self.user_schema_importer = input_builders.with_imported_schema(uri)
 
         return self.user_schema_importer
 
@@ -331,10 +304,7 @@ class PipelineDef:
 
         Returns: self
         """
-        self.train_base_model = ImporterNode(
-            instance_name='with_base_model',
-            source_uri=uri,
-            artifact_type=standard_artifacts.Model)
+        self.train_base_model = input_builders.with_base_model(uri)
 
         return self.train_base_model
 
@@ -348,10 +318,8 @@ class PipelineDef:
 
         Returns: self
         """
-        self.user_hyperparameters_importer = ImporterNode(
-            instance_name='with_hyperparameters',
-            source_uri=uri,
-            artifact_type=standard_artifacts.HyperParameters)
+        self.user_hyperparameters_importer = input_builders.with_hyperparameters(
+            uri)
 
         return self.user_hyperparameters_importer
 
@@ -466,34 +434,46 @@ class PipelineDef:
         return self.trainer
 
     @build_step('model_evaluator')
-    def evaluate_model(self, eval_config: tfma.EvalConfig, example_input: Optional = None):
-        """Constructs an Evaluator
+    def evaluate_model(self, eval_config: tfma.EvalConfig,
+                       example_input: Optional = None,
+                       example_provider_component: Optional[BaseComponent] = None):
+        """Constructs an Evaluator component
 
         Args:
-            example_input ([type], optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
-            the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples.
+            example_input (Optional, optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
+            the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples. Defaults
+            to RAW_EXAMPLES
+
+            example_provider_component (Optional[BaseComponent], optional): An external example input component,
+            which should output examples at the `outputs['examples']` attribute. 
 
         Returns: self
         """
-        if not example_input and self.cached_example_input:
-            example_input = self.cached_example_input
 
-        self.lasest_blessed_model_resolver = ResolverNode(
-            instance_name='latest_blessed_model_resolver',
-            resolver_class=latest_blessed_model_resolver.LatestBlessedModelResolver,
-            model=Channel(type=standard_artifacts.Model),
-            model_blessing=Channel(type=standard_artifacts.ModelBlessing))
+        self.lasest_blessed_model_resolver = input_builders.get_latest_blessed_model_resolver()
 
-        inputs = ExampleInputs.RAW_EXAMPLES(self)
+        args = {
+            'model': self.trainer.outputs['model'],
+            'eval_config': eval_config
+        }
 
-        if example_input:
-            inputs = example_input(self)
-            self.cached_example_input = self.cached_example_input or inputs
+        if example_provider_component:
+            self.components['model_evaluator_example_provider'] = example_provider_component
+            args['examples'] = example_provider_component.outputs['examples']
 
-        self.model_evaluator = Evaluator(
-            examples=inputs,
-            model=self.trainer.outputs['model'],
-            eval_config=eval_config)
+        if not example_provider_component:
+            if not example_input and self.cached_example_input:
+                args['examples'] = self.cached_example_input
+            elif example_input:
+                inputs = example_input(self)
+                args['examples'] = inputs
+
+                self.cached_example_input = self.cached_example_input or inputs
+            else:
+                args['examples'] = ExampleInputs.RAW_EXAMPLES(
+                    self)
+
+        self.model_evaluator = Evaluator(**args)
 
         return self.model_evaluator
 
@@ -575,22 +555,25 @@ class PipelineDef:
         return self.pusher
 
     @build_step('bulk_inferrer')
-    def bulk_infer(examples_provider_component: BaseComponent,
+    def bulk_infer(example_provider_component: BaseComponent,
                    data_spec: Optional[Union[bulk_inferrer_pb2.DataSpec,
                                              Dict[Text, Any]]] = None,
                    model_spec: Optional[Union[bulk_inferrer_pb2.ModelSpec,
-                                              Dict[Text, Any]]] = None,):
+                                              Dict[Text, Any]]] = None):
         """Generates a BulkInferrer component that uses trainer model output and model evaluator
         blessing.
 
         Args:
-            examples (BaseComponent): A user-provided component that provides example tfrecord inputs to the 
+            example_provider_component (BaseComponent): A user-provided component that provides example tfrecord inputs to the 
             `.outputs['examples']` attribute.
 
         Returns: self
         """
+
+        self.components['bulk_inferrer_example_provider'] = example_provider_component
+
         args = {
-            'examples': examples_provider_component.outputs['examples'],
+            'examples': example_provider_component.outputs['examples'],
             'model': self.trainer.outputs['model']
         }
 
