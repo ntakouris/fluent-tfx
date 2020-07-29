@@ -133,6 +133,19 @@ Please be advised, this project is aimed to make the majority of machine learnin
 
 If you've got suggestions for improvement, please create a new issue and we can chat about it :).
 
+## But Tensorflow Extended is already fully capable to construct e2e pipelines by itself, why bother to use another API?
+
+- Verbose and long code definitions. Actual preprocessing and training code can be as lengthy as an actual pipeline component definition.
+- Lack of sensible defaults. You have to manually specify inputs and outputs to everything. This allows maximum flexibility on one hand, but on the other 99% of cases, most of the IOs can be automatically wired. For example, your preprocessing component is going to probably read your first input component's input, and pass outputs to training.
+- Too much boilerplate code. Scaffolding via the TFX CLI produces 15–20 files in 4–5 directories.
+
+## The benefits of an easier to use, API layer
+
+- Fluent and compact pipeline definition and runtime configuration. No more scrolling through endless, huge 300+ line functions that construct pipelines
+- No scaffolding, easy to set up by using a few lines of code
+- Extra helpful utilities to speed up common tasks, such as data input, TFX component construction and wiring
+- Sensible defaults and 99% - suitable component IO wiring
+
 ### Licensing Notice
 
 Main source code of this package, under the directory `fluent_tfx` is released under the MIT License.
