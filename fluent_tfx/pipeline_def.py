@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Optional, Text, List, Dict, Any, Union
 from functools import wraps
@@ -60,7 +61,7 @@ class PipelineDef:
     Obtain the tfx pipeline instance by using `.build()`
     """
 
-    def __init__(self, name: Text, bucket: Optional[Text] = './bucket',
+    def __init__(self, name: Text, bucket: Optional[Text] = 'bucket',
                  metadata_connection_config: Optional[metadata_store_pb2.ConnectionConfig] = None):
         """
         Args:
@@ -101,8 +102,8 @@ class PipelineDef:
 
         Returns: self
         """
-        metadata_connection_string = \
-            f'{self.pipeline_bucket}/{self.pipeline_name}/metadata.db'
+        metadata_connection_string = os.path.join(
+            self.pipeline_bucket, self.pipeline_name, 'metadata.db')
 
         self.metadata_connection_config = metadata. \
             sqlite_metadata_connection_config(metadata_connection_string)
@@ -537,7 +538,8 @@ class PipelineDef:
         elif relative_push_uri:
             args['push_destination'] = pusher_pb2.PushDestination(
                 filesystem=pusher_pb2.PushDestination.Filesystem(
-                    base_directory=f'{self.pipeline_bucket}/{self.pipeline_name}/{relative_push_uri}'))
+                    base_directory=os.path.join(
+                        self.pipeline_bucket, self.pipeline_name, relative_push_uri)))
 
         if self.model_evaluator:
             args['model_blessing'] = self.model_evaluator.outputs['blessing']
@@ -618,7 +620,7 @@ class PipelineDef:
         """
         args = {
             'pipeline_name': self.pipeline_name,
-            'pipeline_root': f'{self.pipeline_bucket}/{self.pipeline_name}/staging',
+            'pipeline_root': os.path.join(self.pipeline_bucket, self.pipeline_name, 'staging'),
             'components': self.components.values(),
             'enable_cache': self.enable_cache or False
         }

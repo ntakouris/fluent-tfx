@@ -1,7 +1,7 @@
 import setuptools
 
 setuptools.setup(
-    name="fluent-tfx", # Replace with your own username
+    name="fluent-tfx",
     version="0.0.1",
     author="Theodoros Ntakouris",
     author_email="zarkopafilis@gmail.com",
