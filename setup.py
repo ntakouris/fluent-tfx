@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="fluent-tfx",
-    version="0.0.2",
+    version="0.0.3",
     author="Theodoros Ntakouris",
     author_email="zarkopafilis@gmail.com",
     description="A fluent API layer for tensorflow extended e2e machine learning pipelines",
