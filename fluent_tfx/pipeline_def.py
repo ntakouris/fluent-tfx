@@ -61,7 +61,7 @@ class PipelineDef:
     Obtain the tfx pipeline instance by using `.build()`
     """
 
-    def __init__(self, name: Text, bucket: Optional[Text] = 'bucket',
+    def __init__(self, name: Text, bucket: Optional[Text] = None,
                  metadata_connection_config: Optional[metadata_store_pb2.ConnectionConfig] = None):
         """
         Args:
@@ -71,6 +71,9 @@ class PipelineDef:
             metadata_connection_config (Optional[metadata_store_pb2.ConnectionConfig], optional): 
             Optional ML Metadata configuration for rapid local prototyping you can use `with_sqlite_ml_metadata`. Defaults to None.
         """
+        if not bucket:
+            bucket = os.path.join(os.getcwd(), 'bucket')
+
         self.components = {}
 
         self.pipeline_name = name
