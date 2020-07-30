@@ -2,9 +2,9 @@
 
 Fluent TFX provides a better API for TFX pipeline creation. If you are already using tensorflow or keras for your models, this is an easy to use api that will have your model up and running in an e2e scenario quickly, without the need to waste a significant amount of time of learning the internals of tfx to get something working.
 
-![Tests](https://github.com/ntakouris/fluent-tfx/workflows/Test%20Python%20Package/badge.svg)
+[![PyPI version](https://badge.fury.io/py/fluent-tfx.svg)](https://badge.fury.io/py/fluent-tfx)
 
-![PyPi](https://github.com/ntakouris/fluent-tfx/workflows/Upload%20Python%20Package/badge.svg)
+![Tests](https://github.com/ntakouris/fluent-tfx/workflows/Test%20Python%20Package/badge.svg)
 
 `pip install fluent-tfx`
 
