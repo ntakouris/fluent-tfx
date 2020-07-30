@@ -4,7 +4,8 @@ from typing import Optional, Text, List, Dict, Any, Union
 from functools import wraps
 
 import tensorflow_model_analysis as tfma
-from tfx.orchestration import metadata, pipeline, data_types
+from tfx.orchestration.pipeline import Pipeline
+from tfx.orchestration import metadata, data_types
 
 from tfx.proto import example_gen_pb2, trainer_pb2, \
     infra_validator_pb2, pusher_pb2, bulk_inferrer_pb2
@@ -156,7 +157,7 @@ class PipelineDef:
         """
 
         self.example_gen = input_builders.from_csv(
-            uri, input_config=input_config, output_config=output_config)
+            uri=uri, input_config=input_config, output_config=output_config)
         return self.example_gen
 
     @build_step('example_gen')
@@ -173,7 +174,7 @@ class PipelineDef:
         Returns: self
         """
         self.example_gen = input_builders.from_tfrecord(
-            uri, input_config=input_config, output_config=output_config)
+            uri=uri, input_config=input_config, output_config=output_config)
         return self.example_gen
 
     @build_step('example_gen')
@@ -190,7 +191,7 @@ class PipelineDef:
         Returns: self
         """
         self.example_gen = input_builders.from_bigquery(
-            query, input_config=input_config, output_config=output_config)
+            query=query, input_config=input_config, output_config=output_config)
         return self.example_gen
 
     @build_step('example_gen')
@@ -222,7 +223,8 @@ class PipelineDef:
 
         Returns: self
         """
-        self.user_schema_importer = input_builders.with_imported_schema(uri)
+        self.user_schema_importer = input_builders.with_imported_schema(
+            uri=uri)
 
         return self.user_schema_importer
 
@@ -308,7 +310,7 @@ class PipelineDef:
 
         Returns: self
         """
-        self.train_base_model = input_builders.with_base_model(uri)
+        self.train_base_model = input_builders.with_base_model(uri=uri)
 
         return self.train_base_model
 
@@ -323,7 +325,7 @@ class PipelineDef:
         Returns: self
         """
         self.user_hyperparameters_importer = input_builders.with_hyperparameters(
-            uri)
+            uri=uri)
 
         return self.user_hyperparameters_importer
 
@@ -347,13 +349,11 @@ class PipelineDef:
         if self.transform:
             args['transform_graph'] = self.transform.outputs['transform_graph']
 
-        if not example_input and self.cached_example_input:
-            args['examples'] = self.cached_example_input
-        elif example_input:
+        if example_input:
             inputs = example_input(self)
             args['examples'] = inputs
 
-            self.cached_example_input = self.cached_example_input or inputs
+            self.cached_example_input = inputs
         else:
             args['examples'] = ExampleInputs.PREPROCESSED_EXAMPLES(
                 self)
@@ -375,6 +375,8 @@ class PipelineDef:
         If there is a user provided schema, it will be used.
         Similarly, if there are hyperparameters explicitly defined, they will be used.
 
+        No need to explicitly re-specify example inputs if you've already specified them in `tune()`.
+
         By default, an trainer_executor.GenericExecutor is used.
 
         If ai platform training arguments are provided, the executor is set to ai_platform_trainer_executor.GenericExecutor
@@ -389,7 +391,7 @@ class PipelineDef:
         """
         args = {
             'module_file': module_file,
-            'schema': SchemaInputs.SCHEMA_CHANNEL(self),
+            'schema': SchemaInputs.SCHEMA_CHANNEL(self)
         }
 
         hparams = HyperParameterInputs.BEST_HYPERPARAMETERS(self)
@@ -443,10 +445,13 @@ class PipelineDef:
                        example_provider_component: Optional[BaseComponent] = None):
         """Constructs an Evaluator component
 
+        No need to specify example_input if you've already specified it in `train()` or `tune()`.
+
         Args:
             example_input (Optional, optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
             the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples. Defaults
-            to RAW_EXAMPLES
+            to RAW_EXAMPLES.
+
 
             example_provider_component (Optional[BaseComponent], optional): An external example input component,
             which should output examples at the `outputs['examples']` attribute.
@@ -454,10 +459,12 @@ class PipelineDef:
         Returns: self
         """
 
-        self.lasest_blessed_model_resolver = input_builders.get_latest_blessed_model_resolver()
+        self.latest_blessed_model_resolver = input_builders.get_latest_blessed_model_resolver()
+        self.components['latest_blessed_model_resolver'] = self.latest_blessed_model_resolver
 
         args = {
             'model': self.trainer.outputs['model'],
+            'baseline_model': self.latest_blessed_model_resolver.outputs['model'],
             'eval_config': eval_config
         }
 
@@ -488,6 +495,9 @@ class PipelineDef:
                        example_input=None):
         """Constructs an InfraValidator component.
 
+        No need to specify example_input if you've already specified it in `train()`, `tune()` or `evaluate_model()`.
+
+
         Args:
             example_input ([type], optional): A `ExampleInputs.{RAW_EXAMPLES, PREPROCESSED_EXAMPLES}` function reference which provides
             the example input channel. Defaults to None, where the input channel is set to the transformed/preprocessed examples.
@@ -511,7 +521,8 @@ class PipelineDef:
             inputs = example_input(self)
             args['examples'] = inputs
 
-            self.cached_example_input = self.cached_example_input or inputs
+            # unnecessary to assign `inputs` to `self.cached_example_input` here
+            # this is probably the last stop for the cached example input train
         else:
             args['examples'] = ExampleInputs.RAW_EXAMPLES(
                 self)
@@ -615,11 +626,11 @@ class PipelineDef:
         self.beam_pipeline_args = args
         return self
 
-    def build(self) -> pipeline.Pipeline:
+    def build(self) -> Pipeline:
         """Builds the pipeline.
 
         Returns:
-            pipeline.Pipeline: The native TFX pipeline
+            Pipeline: The native TFX pipeline
         """
         args = {
             'pipeline_name': self.pipeline_name,
@@ -634,7 +645,7 @@ class PipelineDef:
         if self.beam_pipeline_args:
             args['beam_pipeline_args'] = self.beam_pipeline_args
 
-        return pipeline.Pipeline(**args)
+        return Pipeline(**args)
 
 
 class ExampleInputs:

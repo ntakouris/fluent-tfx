@@ -1,45 +1,16 @@
 import pytest
+import os
 from unittest import mock
 
-from .pipeline_def import PipelineDef, \
-    ExampleInputs, SchemaInputs, HyperParameterInputs, \
-    build_step
+from tfx.components.base.base_component import BaseComponent
 
+from fluent_tfx import PipelineDef, \
+    ExampleInputs, SchemaInputs, HyperParameterInputs
 
-def test_build_step_works():
-    # Arrange
-    class BuildStepTester:
-        def __init__(self):
-            self.components = {}
-
-        @build_step('some_component_name')
-        def some_build_step(self, ret):
-            ret(1)
-            return ret
-
-        @build_step('other_component_name')
-        def other_build_step(self, ret):
-            ret(2)
-            return ret
-
-    bs_tester = BuildStepTester()
-    some_comp = mock.Mock()
-    other_comp = mock.Mock()
-
-    # Act
-    bs_tester.some_build_step(some_comp)
-    bs_tester.other_build_step(other_comp)
-
-    # Assert
-    assert len(bs_tester.components) == 2
-    assert 'some_component_name' in bs_tester.components
-    assert bs_tester.components['some_component_name'] is some_comp
-
-    assert 'other_component_name' in bs_tester.components
-    assert bs_tester.components['other_component_name'] is other_comp
-
-    some_comp.assert_called_once_with(1)
-    other_comp.assert_called_once_with(2)
+from fluent_tfx.pipeline_def import build_step
+from tfx.components.base import executor_spec
+from tfx.extensions.google_cloud_ai_platform.trainer \
+    import executor as ai_platform_trainer_executor
 
 
 def test_raw_example_inputs_raw_work():

@@ -7,7 +7,6 @@ attrs==19.3.0
 autopep8==1.5.3
 avro-python3==1.9.2.1
 backcall==0.2.0
-black==19.10b0
 bleach==3.1.5
 cachetools==3.1.1
 certifi==2020.6.20
@@ -23,6 +22,7 @@ docopt==0.6.2
 entrypoints==0.3
 fastavro==0.23.6
 fasteners==0.15
+-e git+https://github.com/ntakouris/fluent-tfx.git@240237d3f61d37c5326354f7de5debcb4a71b1cb#egg=fluent_tfx
 future==0.18.2
 gast==0.3.3
 google-api-core==1.22.0
@@ -120,9 +120,9 @@ scipy==1.4.1
 Send2Trash==1.5.0
 six==1.15.0
 tabulate==0.8.7
-tensorboard==2.2.0
+tensorboard==2.3.0
 tensorboard-plugin-wit==1.7.0
-tensorflow==2.2.0
+tensorflow==2.3.0
 tensorflow-data-validation==0.22.2
 tensorflow-estimator==2.3.0
 tensorflow-metadata==0.22.2
