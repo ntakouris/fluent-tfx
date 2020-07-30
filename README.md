@@ -6,6 +6,8 @@ Fluent TFX provides a better API for TFX pipeline creation. If you are already u
 
 ![Tests](https://github.com/ntakouris/fluent-tfx/workflows/Test%20Python%20Package/badge.svg)
 
+[![codecov](https://codecov.io/gh/ntakouris/fluent-tfx/branch/master/graph/badge.svg)](https://codecov.io/gh/ntakouris/fluent-tfx)
+
 `pip install fluent-tfx`
 
 ```python
