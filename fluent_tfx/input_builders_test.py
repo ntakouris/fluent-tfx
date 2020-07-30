@@ -1,7 +1,7 @@
 import pytest
 from unittest import mock
 
-from fluent_tfx.input_builders import from_csv, from_tfrecord, from_bigquery, \
+from .input_builders import from_csv, from_tfrecord, from_bigquery, \
     with_base_model, with_hyperparameters, with_imported_schema, get_latest_blessed_model_resolver
 from tfx.types import standard_artifacts, Channel
 from tfx.dsl.experimental.latest_blessed_model_resolver import LatestBlessedModelResolver

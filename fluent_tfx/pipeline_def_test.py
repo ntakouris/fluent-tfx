@@ -1,7 +1,7 @@
 import pytest
 from unittest import mock
 
-from fluent_tfx.pipeline_def import PipelineDef, \
+from .pipeline_def import PipelineDef, \
     ExampleInputs, SchemaInputs, HyperParameterInputs, \
     build_step
 
