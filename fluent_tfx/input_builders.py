@@ -36,7 +36,7 @@ def from_csv(uri: Text, name: Optional[Text] = None,
     return CsvExampleGen(**args)
 
 
-def from_tfrecord(uri: Text,
+def from_tfrecord(uri: Text, name: Optional[Text] = None,
                   input_config: Optional[example_gen_pb2.Input] = None,
                   output_config: Optional[example_gen_pb2.Output] = None):
     """Constructs an ImportExampleGen component by using external_input(uri)
@@ -52,6 +52,9 @@ def from_tfrecord(uri: Text,
         'input': external_input(uri),
     }
 
+    if name:
+        args['instance_name'] = name
+
     if input_config:
         args['input_config'] = input_config
 
@@ -61,7 +64,7 @@ def from_tfrecord(uri: Text,
     return ImportExampleGen(**args)
 
 
-def from_bigquery(query: Text,
+def from_bigquery(query: Text, name: Optional[Text] = None,
                   input_config: Optional[example_gen_pb2.Input] = None,
                   output_config: Optional[example_gen_pb2.Output] = None):
     """Constructs a BigQueryExampleGen component by using external_input(uri)
@@ -76,6 +79,9 @@ def from_bigquery(query: Text,
     args = {
         'query': query,
     }
+
+    if name:
+        args['instance_name'] = name
 
     if input_config:
         args['input_config'] = input_config
