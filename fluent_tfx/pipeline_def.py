@@ -56,7 +56,7 @@ def build_step(component_name: Text):
 
 class PipelineDef:
     """The fluent definition class that empowers fluent-tfx.
-    Initialise the constructor with a name and use the 
+    Initialise the constructor with a name and use the
     factory methods to construct the pipeline.
     Obtain the tfx pipeline instance by using `.build()`
     """
@@ -68,7 +68,7 @@ class PipelineDef:
             name (Text): The pipeline's name
             bucket (Text, optional): Intermediate artifacts and staging binaries are going
             to be saved under `{name}/{bucket}/..`. Defaults to './bucket'.
-            metadata_connection_config (Optional[metadata_store_pb2.ConnectionConfig], optional): 
+            metadata_connection_config (Optional[metadata_store_pb2.ConnectionConfig], optional):
             Optional ML Metadata configuration for rapid local prototyping you can use `with_sqlite_ml_metadata`. Defaults to None.
         """
         if not bucket:
@@ -100,7 +100,7 @@ class PipelineDef:
         self.bulk_inferrer = None
 
     def with_sqlite_ml_metadata(self):
-        """WIll use a sqlite database under {bucket}/{name}/metadata.db as a 
+        """WIll use a sqlite database under {bucket}/{name}/metadata.db as a
         backend for ML Metadata.
 
         Returns: self
@@ -449,7 +449,7 @@ class PipelineDef:
             to RAW_EXAMPLES
 
             example_provider_component (Optional[BaseComponent], optional): An external example input component,
-            which should output examples at the `outputs['examples']` attribute. 
+            which should output examples at the `outputs['examples']` attribute.
 
         Returns: self
         """
@@ -569,7 +569,7 @@ class PipelineDef:
         blessing.
 
         Args:
-            example_provider_component (BaseComponent): A user-provided component that provides example tfrecord inputs to the 
+            example_provider_component (BaseComponent): A user-provided component that provides example tfrecord inputs to the
             `.outputs['examples']` attribute.
 
         Returns: self
@@ -640,17 +640,17 @@ class PipelineDef:
 class ExampleInputs:
     """Provides accessor functions for channel artifact access, regarding example tf records.
     RAW EXAMPLES -> import example_gen files
-    PREPROCESSED_EXAMPLES -> import transformed examples 
+    PREPROCESSED_EXAMPLES -> import transformed examples
     """
     @staticmethod
-    def _get_raw_examples_channel(pipeline_def: PipelineDef):
-        return pipeline_def.example_gen['examples']
+    def _get_raw_examples_channel(pipeline_def: PipelineDef) -> Channel:
+        return pipeline_def.example_gen.outputs['examples']
 
     @staticmethod
-    def _get_preprocessed_examples_channel(pipeline_def: PipelineDef):
+    def _get_preprocessed_examples_channel(pipeline_def: PipelineDef) -> Channel:
         return pipeline_def.transform.outputs['transformed_examples']
 
-    RAW_EXAMPLES = _get_preprocessed_examples_channel
+    RAW_EXAMPLES = _get_raw_examples_channel
     PREPROCESSED_EXAMPLES = _get_preprocessed_examples_channel
 
 
@@ -660,11 +660,11 @@ class HyperParameterInputs:
     """
     @staticmethod
     def _get_best_hyperparameters(pipeline_def: PipelineDef):
-        if pipeline_def.tuner:
-            return pipeline_def.tuner.outputs['best_hyperparameters']
-
         if pipeline_def.user_hyperparameters_importer:
             return pipeline_def.user_hyperparameters_importer.outputs['result']
+
+        if pipeline_def.tuner:
+            return pipeline_def.tuner.outputs['best_hyperparameters']
 
         return None
 
