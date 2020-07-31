@@ -40,7 +40,7 @@ from tfx.components.trainer.fn_args_utils import FnArgs
 from tfx.components.trainer.executor import TrainerFnArgs
 from tfx.components.tuner.component import TunerFnResult
 
-from tfx.proto import trainer_pb2, evaluator_pb2, pusher_pb2
+from tfx.proto import trainer_pb2, evaluator_pb2, pusher_pb2, infra_validator_pb2
 
 from google.protobuf import text_format
 from tensorflow.python.lib.io import file_io
@@ -115,6 +115,14 @@ def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
                train_args=trainer_pb2.TrainArgs(num_steps=10),
                eval_args=trainer_pb2.EvalArgs(num_steps=5)) \
         .evaluate_model(eval_config=_get_eval_config()) \
+        .infra_validate(serving_spec=infra_validator_pb2.ServingSpec(
+            tensorflow_serving=infra_validator_pb2.TensorFlowServing(
+                tags=['latest']),
+            local_docker=infra_validator_pb2.LocalDockerConfig()
+        ),
+        request_spec=infra_validator_pb2.RequestSpec(
+            tensorflow_serving=infra_validator_pb2.TensorFlowServingRequestSpec()
+        )) \
         .push_to(relative_push_uri='serving') \
         .bulk_infer(example_provider_component=ftfx.input_builders.from_csv(
             uri=os.path.join(current_dir, 'to_infer'),

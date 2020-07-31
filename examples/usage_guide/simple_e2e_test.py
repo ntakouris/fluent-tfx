@@ -71,17 +71,19 @@ class SimpleFTFXE2ETest(tf.test.TestCase):
         self.assertComponentsExistInDef(
             pipeline_def, 'model_evaluator', tfx.components.Evaluator)
         self.assertComponentsExistInDef(
+            pipeline_def, 'infra_validator', tfx.components.InfraValidator)
+        self.assertComponentsExistInDef(
             pipeline_def, 'pusher', tfx.components.Pusher)
         self.assertComponentsExistInDef(
             pipeline_def, 'tips_printer', tfx.components.base.base_component.BaseComponent)
-        # self.assertComponentsExistInDef(
-        #     pipeline_def, 'bulk_inferrer', tfx.components.BulkInferrer)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'bulk_inferrer', tfx.components.BulkInferrer)
 
     def testSimpleE2EFTFXPipeline(self):
         pipeline_def = get_pipeline(self._initial_pipeline_def)
         pipeline_def = pipeline_def.with_sqlite_ml_metadata().cache()
 
-        expected_execution_count = 13  # 10 components + 3 importer nodes
+        expected_execution_count = 14
         self.assertLen(pipeline_def.components.values(),
                        expected_execution_count)
 
