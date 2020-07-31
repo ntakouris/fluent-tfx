@@ -1,5 +1,6 @@
 .DS_Store
 bucket/
+tmpbucket/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

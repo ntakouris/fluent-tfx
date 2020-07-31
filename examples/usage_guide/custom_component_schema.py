@@ -43,20 +43,25 @@ def schema_printer_build_fn(components):
                           schema_provided=components['user_schema_importer'].outputs['result'])
 
 
-if __name__ == '__main__':
-    absl.logging.set_verbosity(absl.logging.ERROR)
-
+def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
     current_dir = os.path.dirname(
         os.path.realpath(__file__))
-    bucket_uri = os.path.join(current_dir, 'bucket')
-
-    pipeline = ftfx.PipelineDef(name='custom_component_schema', bucket=bucket_uri) \
-        .with_sqlite_ml_metadata() \
+    return pipeline_def \
         .from_csv(os.path.join(current_dir, 'data/')) \
         .generate_statistics() \
         .infer_schema() \
         .with_imported_schema(os.path.join(current_dir, 'saved', 'schema')) \
-        .add_custom_component(name='schema_printer', component=schema_printer_build_fn) \
-        .build()
+        .add_custom_component(name='schema_printer', component=schema_printer_build_fn)
+
+
+if __name__ == '__main__':
+    absl.logging.set_verbosity(absl.logging.ERROR)
+
+    bucket_uri = os.path.join(os.path.realpath(__file__), 'bucket')
+    pipeline_def = ftfx.PipelineDef(
+        name='custom_component_schema', bucket=bucket_uri).with_sqlite_ml_metadata()
+
+    pipeline_def = get_pipeline(pipeline_def)
+    pipeline = pipeline_def.build()
 
     BeamDagRunner().run(pipeline)
