@@ -7,7 +7,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setuptools.setup(
     name="fluent-tfx",
-    version="0.0.3",
+    version="0.22.0",
     author="Theodoros Ntakouris",
     author_email="zarkopafilis@gmail.com",
     description="A fluent API layer for tensorflow extended e2e machine learning pipelines",
@@ -16,7 +16,7 @@ setuptools.setup(
     url="https://github.com/ntakouris/fluent-tfx",
     packages=setuptools.find_packages(),
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 4 - Beta",
         "Environment :: Console",
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
