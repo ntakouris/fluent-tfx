@@ -47,7 +47,7 @@ from tensorflow.python.lib.io import file_io
 from tensorflow_metadata.proto.v0 import schema_pb2
 from tensorflow_transform.tf_metadata import schema_utils
 
-from .model_code import LABEL_KEY
+from examples.usage_guide.model_code import LABEL_KEY
 
 from tfx.dsl.component.experimental.decorators import component
 from tfx.dsl.component.experimental.annotations import InputArtifact
@@ -75,20 +75,8 @@ def tips_printer_build_fn(components):
                         model=components['trainer'].outputs['model'])
 
 
-if __name__ == '__main__':
-    absl.logging.set_verbosity(absl.logging.ERROR)
-
-    current_dir = os.path.dirname(
-        os.path.realpath(__file__))
-
-    user_code_file = os.path.join(os.path.dirname(
-        os.path.realpath(__file__)), 'model_code.py')
-    print(
-        f'Using {user_code_file} for preprocessing, training and tuning functions')
-
-    bucket_uri = os.path.join(current_dir, 'bucket')
-
-    eval_config = tfma.EvalConfig(
+def _get_eval_config() -> tfma.EvalConfig:
+    return tfma.EvalConfig(
         model_specs=[tfma.ModelSpec(
             label_key=LABEL_KEY)],
         slicing_specs=[tfma.SlicingSpec()],
@@ -105,11 +93,20 @@ if __name__ == '__main__':
             ])
         ])
 
-    pipeline = ftfx.PipelineDef(name='simple_e2e', bucket=bucket_uri) \
-        .with_sqlite_ml_metadata() \
-        .from_csv(os.path.join(current_dir, 'data/')) \
+
+def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
+    current_dir = os.path.dirname(
+        os.path.realpath(__file__))
+
+    user_code_file = os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), 'model_code.py')
+    logging.info(
+        f'Using {user_code_file} for preprocessing, training and tuning functions')
+
+    return pipeline_def.from_csv(os.path.join(current_dir, 'data/')) \
         .generate_statistics() \
         .infer_schema(infer_feature_shape=True) \
+        .validate_input_data() \
         .preprocess(user_code_file) \
         .tune(user_code_file,
               train_args=trainer_pb2.TrainArgs(num_steps=5),
@@ -117,10 +114,7 @@ if __name__ == '__main__':
         .train(user_code_file,
                train_args=trainer_pb2.TrainArgs(num_steps=10),
                eval_args=trainer_pb2.EvalArgs(num_steps=5)) \
-        .evaluate_model(eval_config=eval_config,
-                        example_provider_component=ftfx.input_builders.from_csv(
-                            os.path.join(current_dir, 'data'),
-                            name='eval_example_gen')) \
+        .evaluate_model(eval_config=_get_eval_config()) \
         .push_to(relative_push_uri='serving') \
         .bulk_infer(example_provider_component=ftfx.input_builders.from_csv(
             uri=os.path.join(current_dir, 'to_infer'),
@@ -128,8 +122,20 @@ if __name__ == '__main__':
         )) \
         .add_custom_component(name='tips_printer', component=tips_printer_build_fn)
 
+
+if __name__ == '__main__':
+    absl.logging.set_verbosity(absl.logging.ERROR)
+
+    bucket_uri = os.path.join(os.path.dirname(__file__), 'bucket')
+
+    pipeline_def = ftfx.PipelineDef(name='simple_e2e', bucket=bucket_uri) \
+        .with_sqlite_ml_metadata()
+
+    pipeline_def = get_pipeline(pipeline_def)
+
     # you can also do:
     print('Exposed pipeline components dict:')
-    print(pipeline.components)
+    print(pipeline_def.components)
 
-    BeamDagRunner().run(pipeline.build())
+    pipeline = pipeline_def.build()
+    BeamDagRunner().run(pipeline)

@@ -127,10 +127,9 @@ def _build_keras_model(hparams: kerastuner.HyperParameters) -> tf.keras.Model:
     features_in.extend(BINARY_FEATURES)
 
     features_in = [f'{x}_xf' for x in features_in]
-
     input_layers = {
         colname: tf.keras.layers.Input(
-            name=colname, shape=(None, 1), dtype=tf.float32)
+            name=colname, shape=(1,), dtype=tf.float32)
         for colname in features_in
     }
 

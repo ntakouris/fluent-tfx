@@ -29,19 +29,28 @@ from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 from tfx.orchestration import metadata
 from tfx.types import standard_artifacts
 
+
+def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
+    current_dir = os.path.dirname(
+        os.path.realpath(__file__))
+
+    return pipeline_def \
+        .from_csv(os.path.join(current_dir, 'data/')) \
+        .generate_statistics() \
+        .infer_schema()
+
+
 if __name__ == '__main__':
     absl.logging.set_verbosity(absl.logging.ERROR)
 
-    current_dir = os.path.dirname(
-        os.path.realpath(__file__))
-    bucket_uri = os.path.join(current_dir, 'bucket')
+    bucket_uri = os.path.join(
+        os.path.realpath(__file__), 'bucket')
 
-    pipeline = ftfx.PipelineDef(name='schema_generation', bucket=bucket_uri) \
+    pipeline_def = ftfx.PipelineDef(name='schema_generation', bucket=bucket_uri) \
         .with_sqlite_ml_metadata() \
-        .from_csv(os.path.join(current_dir, 'data/')) \
-        .generate_statistics() \
-        .infer_schema() \
-        .build()
+
+    pipeline_def = get_pipeline(pipeline_def)
+    pipeline = pipeline_def.build()
 
     print(pipeline.components)
 

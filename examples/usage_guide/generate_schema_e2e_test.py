@@ -5,21 +5,21 @@ from typing import Text
 
 import tensorflow as tf
 
-from examples.usage_guide.custom_component_schema import get_pipeline
+from examples.usage_guide.generate_schema import get_pipeline
 from fluent_tfx.pipeline_def import PipelineDef
 from tfx.orchestration import metadata
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 import tfx.components
 
 
-class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
+class GenerateSchemaFTFXE2ETest(tf.test.TestCase):
 
     def setUp(self):
-        super(CustomComponentSchemaFTFXEndToEndTest, self).setUp()
+        super(GenerateSchemaFTFXE2ETest, self).setUp()
         self._bucket_dir = os.path.join(os.path.dirname(__file__), 'tmpbucket')
         self._clean_bucket_dir()
         self._initial_pipeline_def = PipelineDef(
-            name='custom_component_schema_e2e_test', bucket=self._bucket_dir)
+            name='generate_schema_e2e_test', bucket=self._bucket_dir)
 
     def _clean_bucket_dir(self):
         if os.path.exists(self._bucket_dir):
@@ -43,11 +43,11 @@ class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
         self.assertComponentExecutedOnce('StatisticsGen')
         self.assertComponentExecutedOnce('SchemaGen')
 
-    def testCustomComponentSchemaE2EFTFXPipeline(self):
+    def testGenerateSchemaE2EFTFXPipeline(self):
         pipeline_def = get_pipeline(self._initial_pipeline_def)
         pipeline_def = pipeline_def.with_sqlite_ml_metadata().cache()
 
-        expected_execution_count = 5  # 4 components + schema importer
+        expected_execution_count = 3  # 4 components + schema importer
         self.assertLen(pipeline_def.components.values(),
                        expected_execution_count)
 
@@ -62,14 +62,6 @@ class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
         self.assertTrue('schema_gen' in pipeline_def.components)
         self.assertIsInstance(
             pipeline_def.components['schema_gen'], tfx.components.SchemaGen)
-
-        self.assertTrue('user_schema_importer' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['user_schema_importer'], tfx.components.ImporterNode)
-
-        self.assertTrue('schema_printer' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['schema_printer'], tfx.components.base.base_component.BaseComponent)
 
         pipeline = pipeline_def.build()
 

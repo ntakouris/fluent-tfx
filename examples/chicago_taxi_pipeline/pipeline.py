@@ -31,6 +31,7 @@ import fluent_tfx as ftfx
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 
 import os
+import logging
 from typing import List, Text, Dict, Any
 
 import absl
@@ -350,8 +351,8 @@ def run_fn(fn_args: TrainerFnArgs):
                save_format='tf', signatures=signatures)
 
 
-def get_pipeline():
-    eval_config = tfma.EvalConfig(
+def _get_eval_config() -> tfma.EvalConfig:
+    return tfma.EvalConfig(
         model_specs=[tfma.ModelSpec(label_key='big_tipper')],
         slicing_specs=[tfma.SlicingSpec()],
         metrics_specs=[
@@ -367,30 +368,34 @@ def get_pipeline():
             ])
         ])
 
+
+def get_pipeline(pipeline_def: ftfx.pipeline_def):
+
     _data_root = os.path.join(os.path.dirname(
         __file__), 'data', 'big_tipper_label')
-    print(f'Loading csv data from: {_data_root}')
+    logging.info(f'Loading csv data from: {_data_root}')
 
-    return ftfx.PipelineDef(name='chicago_taxi_pipeline') \
+    return pipeline_def \
         .from_csv(uri=_data_root) \
         .generate_statistics() \
         .infer_schema() \
         .preprocess(os.path.realpath(__file__)) \
-        .train(fn_file,
+        .train(os.path.realpath(__file__),
                train_args=trainer_pb2.TrainArgs(num_steps=1000),
                eval_args=trainer_pb2.EvalArgs(num_steps=150)) \
-        .evaluate_model(eval_config=eval_config) \
+        .evaluate_model(eval_config=_get_eval_config()) \
         .push_to(relative_push_uri='serving_model') \
-        .cache() \
-        .with_sqlite_ml_metadata() \
         .with_beam_pipeline_args([
             '--direct_running_mode=multi_processing',
             '--direct_num_workers=0',
-        ]) \
-        .build()
+        ])
 
 
 if __name__ == '__main__':
     absl.logging.set_verbosity(absl.logging.INFO)
-    pipeline = get_pipeline()
-    BeamDagRunner().run(pipeline)
+    pipeline_def = ftfx.PipelineDef(name='chicago_taxi_pipeline') \
+        .with_sqlite_ml_metadata() \
+        .cache()
+
+    pipeline_def = get_pipeline(pipeline_def)
+    BeamDagRunner().run(pipeline.build())

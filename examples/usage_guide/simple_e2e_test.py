@@ -5,21 +5,21 @@ from typing import Text
 
 import tensorflow as tf
 
-from examples.usage_guide.custom_component_schema import get_pipeline
+from examples.usage_guide.simple import get_pipeline
 from fluent_tfx.pipeline_def import PipelineDef
 from tfx.orchestration import metadata
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 import tfx.components
 
 
-class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
+class SimpleFTFXE2ETest(tf.test.TestCase):
 
     def setUp(self):
-        super(CustomComponentSchemaFTFXEndToEndTest, self).setUp()
+        super(SimpleFTFXE2ETest, self).setUp()
         self._bucket_dir = os.path.join(os.path.dirname(__file__), 'tmpbucket')
         self._clean_bucket_dir()
         self._initial_pipeline_def = PipelineDef(
-            name='custom_component_schema_e2e_test', bucket=self._bucket_dir)
+            name='simple_e2e_test', bucket=self._bucket_dir)
 
     def _clean_bucket_dir(self):
         if os.path.exists(self._bucket_dir):
@@ -42,35 +42,50 @@ class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
         self.assertComponentExecutedOnce('CsvExampleGen')
         self.assertComponentExecutedOnce('StatisticsGen')
         self.assertComponentExecutedOnce('SchemaGen')
+        self.assertComponentExecutedOnce('ExampleValidator')
+        self.assertComponentExecutedOnce('Tuner')
+        self.assertComponentExecutedOnce('Trainer')
+        self.assertComponentExecutedOnce('Evaluator')
+        self.assertComponentExecutedOnce('Pusher')
+        self.assertComponentExecutedOnce('BulkInferrer')
 
-    def testCustomComponentSchemaE2EFTFXPipeline(self):
+    def assertComponentsExistInDef(self, pipeline_def: PipelineDef, name: Text, type) -> None:
+        self.assertTrue(name in pipeline_def.components)
+        self.assertIsInstance(pipeline_def.components[name], type)
+
+    def assertAllComponentsExistInDef(self, pipeline_def: PipelineDef) -> None:
+        self.assertComponentsExistInDef(
+            pipeline_def, 'example_gen', tfx.components.CsvExampleGen)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'statistics_gen', tfx.components.StatisticsGen)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'schema_gen', tfx.components.SchemaGen)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'example_validator', tfx.components.ExampleValidator)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'transform', tfx.components.Transform)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'tuner', tfx.components.tuner.component.Tuner)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'trainer', tfx.components.Trainer)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'model_evaluator', tfx.components.Evaluator)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'pusher', tfx.components.Pusher)
+        self.assertComponentsExistInDef(
+            pipeline_def, 'tips_printer', tfx.components.base.base_component.BaseComponent)
+        # self.assertComponentsExistInDef(
+        #     pipeline_def, 'bulk_inferrer', tfx.components.BulkInferrer)
+
+    def testSimpleE2EFTFXPipeline(self):
         pipeline_def = get_pipeline(self._initial_pipeline_def)
         pipeline_def = pipeline_def.with_sqlite_ml_metadata().cache()
 
-        expected_execution_count = 5  # 4 components + schema importer
+        expected_execution_count = 13  # 10 components + 3 importer nodes
         self.assertLen(pipeline_def.components.values(),
                        expected_execution_count)
 
-        self.assertTrue('example_gen' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['example_gen'], tfx.components.CsvExampleGen)
-
-        self.assertTrue('statistics_gen' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['statistics_gen'], tfx.components.StatisticsGen)
-
-        self.assertTrue('schema_gen' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['schema_gen'], tfx.components.SchemaGen)
-
-        self.assertTrue('user_schema_importer' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['user_schema_importer'], tfx.components.ImporterNode)
-
-        self.assertTrue('schema_printer' in pipeline_def.components)
-        self.assertIsInstance(
-            pipeline_def.components['schema_printer'], tfx.components.base.base_component.BaseComponent)
-
+        self.assertAllComponentsExistInDef(pipeline_def)
         pipeline = pipeline_def.build()
 
         BeamDagRunner().run(pipeline)
@@ -89,9 +104,9 @@ class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
 
         BeamDagRunner().run(pipeline)
 
-        # All executions are cached
+        # All executions are cached, except resolvers and blessings
         with metadata.Metadata(metadata_config) as m:
-            self.assertEqual(artifact_count, len(m.store.get_artifacts()))
+            self.assertEqual(artifact_count + 4, len(m.store.get_artifacts()))
             artifact_count = len(m.store.get_artifacts())
             self.assertEqual(expected_execution_count * 2,
                              len(m.store.get_executions()))

@@ -57,7 +57,7 @@ def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
 if __name__ == '__main__':
     absl.logging.set_verbosity(absl.logging.ERROR)
 
-    bucket_uri = os.path.join(os.path.realpath(__file__), 'bucket')
+    bucket_uri = os.path.join(os.path.dirname(__file__), 'bucket')
     pipeline_def = ftfx.PipelineDef(
         name='custom_component_schema', bucket=bucket_uri).with_sqlite_ml_metadata()
 
