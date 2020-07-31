@@ -26,7 +26,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Test with pytest
         run: |
-          pytest --cov=./fluent_tfx --cov=./examples --cov-report=xml
+          pytest --cov=./fluent_tfx --cov-report=xml
       - name: Upload to codecov
         uses: codecov/codecov-action@v1
         with:
