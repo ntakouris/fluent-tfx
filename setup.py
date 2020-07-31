@@ -12,7 +12,7 @@ setuptools.setup(
     author_email="zarkopafilis@gmail.com",
     description="A fluent API layer for tensorflow extended e2e machine learning pipelines",
     long_description=long_description,
-    long_description_content_type='text/markdown'
+    long_description_content_type='text/markdown',
     url="https://github.com/ntakouris/fluent-tfx",
     packages=setuptools.find_packages(),
     classifiers=[
