@@ -35,7 +35,7 @@ def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
         os.path.realpath(__file__))
 
     return pipeline_def \
-        .from_csv(os.path.join(current_dir, 'data/')) \
+        .from_csv(os.path.join(current_dir, 'data')) \
         .generate_statistics() \
         .infer_schema()
 

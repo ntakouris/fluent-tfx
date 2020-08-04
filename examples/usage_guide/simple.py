@@ -103,7 +103,7 @@ def get_pipeline(pipeline_def: ftfx.PipelineDef) -> ftfx.PipelineDef:
     logging.info(
         f'Using {user_code_file} for preprocessing, training and tuning functions')
 
-    return pipeline_def.from_csv(os.path.join(current_dir, 'data/')) \
+    return pipeline_def.from_csv(os.path.join(current_dir, 'data')) \
         .generate_statistics() \
         .infer_schema(infer_feature_shape=True) \
         .validate_input_data() \
