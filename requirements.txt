@@ -1,2 +1,2 @@
 tfx>=0.22.0
-tensorflow>=2.2.0
+tensorflow>=2.2.0,<2.3
