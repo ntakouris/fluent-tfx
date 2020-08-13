@@ -133,7 +133,7 @@ def _build_keras_model(hparams: kerastuner.HyperParameters) -> tf.keras.Model:
         for colname in features_in
     }
 
-    x = tf.keras.layers.Concatenate(axis=-1)(input_layers.values())
+    x = tf.keras.layers.Concatenate(axis=-1)(list(input_layers.values()))
 
     h = int(hparams.get(H_SIZE))
     x = tf.keras.layers.Dense(
