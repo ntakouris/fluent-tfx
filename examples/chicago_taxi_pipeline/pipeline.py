@@ -199,6 +199,7 @@ def _build_keras_model(hidden_units: List[int] = None) -> tf.keras.Model:
     ]
 
     model = _wide_and_deep_classifier(
+        # TODO(b/139668410) replace with premade wide_and_deep keras model
         wide_columns=indicator_column,
         deep_columns=real_valued_columns,
         dnn_hidden_units=hidden_units or [100, 70, 50, 25])
@@ -221,6 +222,7 @@ def _wide_and_deep_classifier(wide_columns, deep_columns, dnn_hidden_units):
     # However prefarably they should be passsed in as hparams.
 
     # Keras needs the feature definitions at compile time.
+    # TODO(b/139081439): Automate generation of input layers from FeatureColumn.
     input_layers = {
         colname: tf.keras.layers.Input(
             name=colname, shape=(), dtype=tf.float32)
@@ -239,6 +241,8 @@ def _wide_and_deep_classifier(wide_columns, deep_columns, dnn_hidden_units):
         for colname in _transformed_names(_CATEGORICAL_FEATURE_KEYS)
     })
 
+    # TODO(b/161952382): Replace with Keras premade models and
+    # Keras preprocessing layers.
     deep = tf.keras.layers.DenseFeatures(deep_columns)(input_layers)
     for numnodes in dnn_hidden_units:
         deep = tf.keras.layers.Dense(numnodes)(deep)
@@ -259,14 +263,12 @@ def _wide_and_deep_classifier(wide_columns, deep_columns, dnn_hidden_units):
 
 
 # TFX Transform will call this function.
-def preprocessing_fn(inputs: Dict[Text, Any]) -> Dict[Text, Any]:
+def preprocessing_fn(inputs):
     """tf.transform's callback function for preprocessing inputs.
-
     Args:
-      inputs: map from feature keys to raw not-yet-transformed features.
-
+        inputs: map from feature keys to raw not-yet-transformed features.
     Returns:
-      Map from string feature key to transformed feature operations.
+        Map from string feature key to transformed feature operations.
     """
     outputs = {}
     for key in _DENSE_FLOAT_FEATURE_KEYS:
@@ -289,6 +291,8 @@ def preprocessing_fn(inputs: Dict[Text, Any]) -> Dict[Text, Any]:
     for key in _CATEGORICAL_FEATURE_KEYS:
         outputs[_transformed_name(key)] = _fill_in_missing(inputs[key])
 
+    # TODO(b/157064428): Support label transformation for Keras.
+    # Do not apply label transformation as it will result in wrong evaluation.
     outputs[_transformed_name(_LABEL_KEY)] = inputs[_LABEL_KEY]
 
     return outputs
@@ -320,23 +324,11 @@ def run_fn(fn_args: TrainerFnArgs):
                 for i in range(num_dnn_layers)
             ])
 
-    try:
-        log_dir = fn_args.model_run_dir
-    except KeyError:
-        # TODO(b/158106209): use ModelRun instead of Model artifact for logging.
-        log_dir = os.path.join(os.path.dirname(
-            fn_args.serving_model_dir), 'logs')
-
-    # Write logs to path
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(
-        log_dir=log_dir, update_freq='batch')
-
     model.fit(
         train_dataset,
         steps_per_epoch=fn_args.train_steps,
         validation_data=eval_dataset,
-        validation_steps=fn_args.eval_steps,
-        callbacks=[tensorboard_callback])
+        validation_steps=fn_args.eval_steps)
 
     signatures = {
         'serving_default':
@@ -398,4 +390,4 @@ if __name__ == '__main__':
         .cache()
 
     pipeline_def = get_pipeline(pipeline_def)
-    BeamDagRunner().run(pipeline.build())
+    BeamDagRunner().run(pipeline_def.build())
