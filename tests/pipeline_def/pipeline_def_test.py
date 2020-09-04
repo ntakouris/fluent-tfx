@@ -77,8 +77,33 @@ def test_pipeline_def_validate_input_data_works(pipeline_def, monkeypatch):
     assert mock_example_validator.called
     assert kwargs['statistics'] is mock_statistics_gen.outputs['statistics']
     assert kwargs['schema'] is SchemaInputs.SCHEMA_CHANNEL(pipeline_def)
+    assert 'exclude_splits' not in kwargs
     assert pipeline_def.components['example_validator'] is mock_example_validator.return_value
     assert pipeline_def.example_validator is mock_example_validator.return_value
+
+
+def test_pipeline_def_validate_passes_exclude_splits_arg(pipeline_def, monkeypatch):
+    # Arrange
+    mock_statistics_gen = mock.MagicMock()
+    pipeline_def.statistics_gen = mock_statistics_gen
+    mock_schema_gen = mock.MagicMock()
+    pipeline_def.schema_gen = mock_schema_gen
+
+    mock_example_validator = mock.Mock()
+    monkeypatch.setattr(
+        'fluent_tfx.pipeline_def.ExampleValidator', mock_example_validator)
+
+    mock_exclude_split = mock.Mock()
+
+    # Act
+    pipeline_def = pipeline_def.validate_input_data(
+        exclude_splits=mock_exclude_split)
+    _, kwargs = mock_example_validator.call_args
+
+    # Assert
+    assert 'exclude_splits' in kwargs
+    assert kwargs['exclude_splits'] is mock_exclude_split\
+
 
 
 def test_pipeline_def_preprocess_works(pipeline_def, monkeypatch):
@@ -104,8 +129,32 @@ def test_pipeline_def_preprocess_works(pipeline_def, monkeypatch):
     assert kwargs['examples'] is mock_examples.outputs['examples']
     assert kwargs['module_file'] is mock_module
     assert kwargs['schema'] is SchemaInputs.SCHEMA_CHANNEL(pipeline_def)
+    assert kwargs['materialize'] == True
     assert pipeline_def.components['transform'] is mock_transform.return_value
     assert pipeline_def.transform is mock_transform.return_value
+
+
+def test_pipeline_def_preprocess_passes_materialize_arg(pipeline_def, monkeypatch):
+    # Arrange
+    mock_examples = mock.MagicMock()
+    pipeline_def.example_gen = mock_examples
+
+    mock_schema = mock.MagicMock()
+    pipeline_def.schema_gen = mock_schema
+
+    mock_transform = mock.Mock()
+    monkeypatch.setattr(
+        'fluent_tfx.pipeline_def.Transform', mock_transform)
+
+    mock_module = mock.Mock()
+
+    # Act
+    pipeline_def = pipeline_def.preprocess(mock_module, materialize=False)
+    _, kwargs = mock_transform.call_args
+
+    # Assert
+    assert mock_transform.called
+    assert kwargs['materialize'] == False
 
 
 def test_pipeline_def_enable_cache_works(pipeline_def):

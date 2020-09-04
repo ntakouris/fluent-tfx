@@ -259,7 +259,7 @@ class PipelineDef:
         return self.schema_gen
 
     @build_step('example_validator')
-    def validate_input_data(self):
+    def validate_input_data(self, exclude_splits: Optional[List[Text]] = None):
         """Constructs an ExampleValidator component that uses a schema and the output
         of StatisticsGen via `generate_statistics` to validate input data.
 
@@ -269,14 +269,17 @@ class PipelineDef:
         """
         args = {
             'statistics': self.statistics_gen.outputs['statistics'],
-            'schema': SchemaInputs.SCHEMA_CHANNEL(self)
+            'schema': SchemaInputs.SCHEMA_CHANNEL(self),
         }
+
+        if exclude_splits:
+            args['exclude_splits'] = exclude_splits
 
         self.example_validator = ExampleValidator(**args)
         return self.example_validator
 
     @build_step('transform')
-    def preprocess(self, module_file: Union[Text, data_types.RuntimeParameter]):
+    def preprocess(self, module_file: Union[Text, data_types.RuntimeParameter], materialize: bool = True):
         """Constructs a Transform component using examples generated and a schema.
 
         If a user provided schema is specified, it will be used.
@@ -291,7 +294,8 @@ class PipelineDef:
         args = {
             'examples': self.example_gen.outputs['examples'],
             'module_file': module_file,
-            'schema': SchemaInputs.SCHEMA_CHANNEL(self)
+            'schema': SchemaInputs.SCHEMA_CHANNEL(self),
+            'materialize': materialize
         }
 
         self.transform = Transform(**args)
