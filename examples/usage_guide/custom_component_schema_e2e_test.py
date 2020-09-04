@@ -82,7 +82,7 @@ class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
         with metadata.Metadata(metadata_config) as m:
             artifact_count = len(m.store.get_artifacts())
             execution_count = len(m.store.get_executions())
-            self.assertGreaterEqual(artifact_count, execution_count)
+            self.assertLessEqual(artifact_count, execution_count)
             self.assertEqual(expected_execution_count, execution_count)
 
         self.assertPipelineExecution()
@@ -91,8 +91,8 @@ class CustomComponentSchemaFTFXEndToEndTest(tf.test.TestCase):
 
         # All executions are cached
         with metadata.Metadata(metadata_config) as m:
-            self.assertEqual(artifact_count, len(m.store.get_artifacts()))
             artifact_count = len(m.store.get_artifacts())
+            self.assertEqual(artifact_count, len(m.store.get_artifacts()))
             self.assertEqual(expected_execution_count * 2,
                              len(m.store.get_executions()))
 

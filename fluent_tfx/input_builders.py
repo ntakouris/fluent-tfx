@@ -1,6 +1,6 @@
 from typing import Text, Any, Optional, List, Dict
-from tfx.components import CsvExampleGen, BigQueryExampleGen, ImportExampleGen, ImporterNode, ResolverNode
-from tfx.utils.dsl_utils import csv_input, tfrecord_input, external_input
+from tfx.components import CsvExampleGen, ImportExampleGen, ImporterNode, ResolverNode
+from tfx.extensions.google_cloud_big_query.example_gen.component import BigQueryExampleGen
 from tfx.types import Channel, standard_artifacts
 from tfx.dsl.experimental import latest_blessed_model_resolver
 from tfx.proto import example_gen_pb2
@@ -21,7 +21,7 @@ def from_csv(uri: Text, name: Optional[Text] = None,
     Returns: CsvExampleGen
     """
     args = {
-        'input': external_input(uri),
+        'input_base': uri,
     }
 
     if name:
@@ -49,7 +49,7 @@ def from_tfrecord(uri: Text, name: Optional[Text] = None,
     Returns: ImportExampleGen
     """
     args = {
-        'input': external_input(uri),
+        'input_base': uri,
     }
 
     if name:

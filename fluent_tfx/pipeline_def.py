@@ -12,20 +12,17 @@ from tfx.proto import example_gen_pb2, trainer_pb2, \
 from ml_metadata.proto import metadata_store_pb2
 
 from tfx.dsl.experimental import latest_blessed_model_resolver
-from tfx.utils.dsl_utils import csv_input, tfrecord_input, external_input
 
 from tfx.components.base.base_component import BaseComponent
 
 from tfx.components import CsvExampleGen, ImportExampleGen, \
     StatisticsGen, SchemaGen, Transform, ExampleValidator, ImporterNode, \
-    ResolverNode, Trainer, Evaluator, InfraValidator, Pusher, BulkInferrer
+    ResolverNode, Trainer, Evaluator, InfraValidator, Pusher, BulkInferrer, Tuner
 
-from tfx.components import BigQueryExampleGen
+from tfx.extensions.google_cloud_big_query.example_gen.component import BigQueryExampleGen
 
 from tfx.components.base import executor_spec
 from tfx.components.trainer import executor as trainer_executor
-
-from tfx.components.tuner.component import Tuner
 
 from tfx.types import standard_artifacts, Channel
 from tfx.extensions.google_cloud_ai_platform.trainer \
@@ -146,7 +143,7 @@ class PipelineDef:
     def from_csv(self, uri: Text,
                  input_config: Optional[example_gen_pb2.Input] = None,
                  output_config: Optional[example_gen_pb2.Output] = None):
-        """Constructs a CsvExampleGen component by using external_input(uri)
+        """Constructs a CsvExampleGen component by using `uri`
 
         Args:
             uri (Text): Csv file(s) uri
@@ -164,7 +161,7 @@ class PipelineDef:
     def from_tfrecord(self, uri: Text,
                       input_config: Optional[example_gen_pb2.Input] = None,
                       output_config: Optional[example_gen_pb2.Output] = None):
-        """Constructs an ImportExampleGen component by using external_input(uri)
+        """Constructs an ImportExampleGen component by using `uri`
 
         Args:
             uri (Text): TFRecord file(s) uri
@@ -181,7 +178,7 @@ class PipelineDef:
     def from_bigquery(self, query: Text,
                       input_config: Optional[example_gen_pb2.Input] = None,
                       output_config: Optional[example_gen_pb2.Output] = None):
-        """Constructs a BigQueryExampleGen component by using external_input(uri)
+        """Constructs a BigQueryExampleGen component by using `uri`
 
         Args:
             query (Text): The query to run
@@ -398,8 +395,11 @@ class PipelineDef:
         if hparams:
             args['hyperparameters'] = hparams
 
-        args['custom_executor_spec'] = custom_executor_spec or \
-            executor_spec.ExecutorClassSpec(trainer_executor.GenericExecutor)
+        if not custom_executor_spec:
+            custom_executor_spec = executor_spec.ExecutorClassSpec(
+                trainer_executor.GenericExecutor)
+
+        args['custom_executor_spec'] = custom_executor_spec
 
         if custom_config:
             args['custom_config'] = custom_config

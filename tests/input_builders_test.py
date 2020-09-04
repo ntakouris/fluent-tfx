@@ -21,8 +21,8 @@ def test_from_csv_works(monkeypatch):
     # Assert
     assert mock_csv_example_gen.called
     assert x is mock_csv_example_gen.return_value
-    assert kwargs['input'].type is standard_artifacts.ExternalArtifact
-    assert kwargs['input'].get()[0].uri == 'some_uri'
+    assert type(kwargs['input_base']) is str
+    assert kwargs['input_base'] == 'some_uri'
     assert kwargs['instance_name'] == 'some_example'
     assert kwargs['input_config'] == 2
     assert kwargs['output_config'] == 3
@@ -59,8 +59,8 @@ def test_from_tfrecord_works(monkeypatch):
     # Assert
     assert mock_import_example_gen.called
     assert x is mock_import_example_gen.return_value
-    assert kwargs['input'].type is standard_artifacts.ExternalArtifact
-    assert kwargs['input'].get()[0].uri == 'some_uri'
+    assert type(kwargs['input_base']) is str
+    assert kwargs['input_base'] == 'some_uri'
     assert kwargs['instance_name'] == 'some_example'
     assert kwargs['input_config'] == 2
     assert kwargs['output_config'] == 3
@@ -103,7 +103,7 @@ def test_from_bigquery_works(monkeypatch):
     assert kwargs['output_config'] == 3
 
 
-def test_from_tfrecord_does_not_apply_optional_arguments_to_example_gen(monkeypatch):
+def test_from_bigquery_does_not_apply_optional_arguments_to_example_gen(monkeypatch):
     # Arrange
     mock_bigquery_example_gen = mock.Mock()
     monkeypatch.setattr(
