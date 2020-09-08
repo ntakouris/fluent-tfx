@@ -93,7 +93,7 @@ class PipelineDef:
         self.tuner = None
         self.infra_validator = None
         self.latest_blessed_model_resolver = None
-        self.movdel_evaluator = None
+        self.model_evaluator = None
         self.pusher = None
         self.bulk_inferrer = None
 
